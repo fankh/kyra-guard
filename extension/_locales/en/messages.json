@@ -1,0 +1,499 @@
+{
+  "managedNotice": {
+    "message": "AI services in this browser follow the policy set in this extension."
+  },
+  "extName": {
+    "message": "KYRA AI Guardrail Free"
+  },
+  "extDescription": {
+    "message": "Warns about or blocks AI services and checks what you send to them for personal data and keys. Everything stays in this browser."
+  },
+  "yourCompany": {
+    "message": "the AI policy set in this browser"
+  },
+  "unknownService": {
+    "message": "This AI service"
+  },
+  "labelService": {
+    "message": "Service"
+  },
+  "labelSite": {
+    "message": "Site"
+  },
+  "labelCompany": {
+    "message": "Policy"
+  },
+  "goBack": {
+    "message": "Go back"
+  },
+  "blockedPageTitle": {
+    "message": "Blocked — KYRA AI Guardrail Free"
+  },
+  "blockedHeading": {
+    "message": "This AI service is blocked"
+  },
+  "blockedBody": {
+    "message": "$SERVICE$ is blocked by $COMPANY$, so it cannot be opened in this browser.",
+    "placeholders": {
+      "service": {
+        "content": "$1"
+      },
+      "company": {
+        "content": "$2"
+      }
+    }
+  },
+  "blockedHelp": {
+    "message": "This is set in the extension's settings. If an administrator manages them, ask your IT or security team."
+  },
+  "blockedFramed": {
+    "message": "Blocked by AI policy"
+  },
+  "warnPageTitle": {
+    "message": "Warning — KYRA AI Guardrail Free"
+  },
+  "warnHeading": {
+    "message": "Take care with this AI service"
+  },
+  "warnBody": {
+    "message": "$COMPANY$ shows a warning for $SERVICE$. Do not enter company, customer or personal information into it.",
+    "placeholders": {
+      "service": {
+        "content": "$1"
+      },
+      "company": {
+        "content": "$2"
+      }
+    }
+  },
+  "warnReasonLabel": {
+    "message": "Why do you need to use it? (required)"
+  },
+  "warnReasonPlaceholder": {
+    "message": "For example: reading the public documentation of an API"
+  },
+  "warnNotice": {
+    "message": "If you continue, your reason and the site name are noted in this browser's activity log, and the service is allowed for $MINUTES$ minutes. Nothing is sent anywhere.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1"
+      }
+    }
+  },
+  "warnContinue": {
+    "message": "Continue"
+  },
+  "reasonCounter": {
+    "message": "$COUNT$ / $MAX$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "max": {
+        "content": "$2"
+      }
+    }
+  },
+  "proceedFailed": {
+    "message": "Could not continue. Please try again."
+  },
+  "popupBlockedCount": {
+    "message": "Blocked services"
+  },
+  "popupWarnedCount": {
+    "message": "Warned services"
+  },
+  "popupSettings": {
+    "message": "Settings"
+  },
+  "optionsPageTitle": {
+    "message": "Settings — KYRA AI Guardrail Free"
+  },
+  "optionsManaged": {
+    "message": "These settings are managed by your organization and cannot be changed here."
+  },
+  "promptBlockedTitle": {
+    "message": "This message was not sent"
+  },
+  "promptBlockedBody": {
+    "message": "It contains information that $1 does not allow to be sent to AI services."
+  },
+  "promptBlockedNote": {
+    "message": "Remove the information below and send again. The check ran in this browser; what you typed was not sent anywhere."
+  },
+  "promptWarnTitle": {
+    "message": "Check before you send"
+  },
+  "promptWarnBody": {
+    "message": "This message may contain information that $1 asks you not to send to AI services."
+  },
+  "promptWarnNote": {
+    "message": "If you send it anyway, that is noted in this browser's activity log (not what you typed)."
+  },
+  "promptUnavailableTitle": {
+    "message": "This message was not sent"
+  },
+  "promptUnavailableBody": {
+    "message": "The message could not be checked, and $1 does not allow unchecked messages to AI services. Try again in a moment."
+  },
+  "promptEdit": {
+    "message": "Edit message"
+  },
+  "promptSendAnyway": {
+    "message": "Send anyway"
+  },
+  "promptCategoryPii": {
+    "message": "Personal information"
+  },
+  "promptCategoryFinancial": {
+    "message": "Financial information"
+  },
+  "promptCategoryCredentials": {
+    "message": "Passwords and keys"
+  },
+  "promptCategoryHealthcare": {
+    "message": "Health information"
+  },
+  "promptCategoryIp": {
+    "message": "Confidential material"
+  },
+  "promptCategoryCustom": {
+    "message": "Own rule"
+  },
+  "fileBlockedTitle": {
+    "message": "This file was not attached"
+  },
+  "fileBlockedBody": {
+    "message": "$1 does not allow it to be sent to AI services."
+  },
+  "fileBlockedNote": {
+    "message": "The check ran in this browser. The file name and the rule that matched are noted in the activity log, not the file."
+  },
+  "fileWarnTitle": {
+    "message": "Check this file before you attach it"
+  },
+  "fileWarnBody": {
+    "message": "It may contain information that $1 asks you not to send to AI services."
+  },
+  "fileWarnNote": {
+    "message": "If you attach it anyway, that is noted in this browser's activity log."
+  },
+  "fileUnscannable": {
+    "message": "this kind of file cannot be checked"
+  },
+  "fileUnavailable": {
+    "message": "could not be checked right now"
+  },
+  "fileTooMany": {
+    "message": "Attach at most $1 files at a time so each can be checked."
+  },
+  "fileClose": {
+    "message": "Close"
+  },
+  "fileCancel": {
+    "message": "Do not attach"
+  },
+  "fileSendAnyway": {
+    "message": "Attach anyway"
+  },
+  "promptMaskAndSend": {
+    "message": "Mask and send"
+  },
+  "promptMustMaskNote": {
+    "message": "Edit the message, or send it with the information above masked."
+  },
+  "promptMaskFailedTitle": {
+    "message": "The message could not be masked"
+  },
+  "promptMaskFailedBody": {
+    "message": "This page did not accept the change, so nothing was sent. Remove the information yourself and send again."
+  },
+  "noticeInspectionPrompts": {
+    "message": "On AI sites, the messages you send are checked in this browser against the data rules set here before they go. Nothing is sent to anyone else."
+  },
+  "noticeInspectionFiles": {
+    "message": "On AI sites, the text of files you attach is checked in this browser against the data rules set here before they go. Nothing is sent to anyone else."
+  },
+  "noticeInspectionBoth": {
+    "message": "On AI sites, the messages you send and the text of files you attach are checked in this browser against the data rules set here before they go. Nothing is sent to anyone else."
+  },
+  "localNotice": {
+    "message": "All settings and the activity log stay in this browser. This extension does not connect to any server."
+  },
+  "secGeneral": {
+    "message": "General"
+  },
+  "optOrganisation": {
+    "message": "Organization name (optional)"
+  },
+  "optOrganisationHint": {
+    "message": "Shown on the blocked and warning pages"
+  },
+  "optDefaultAction": {
+    "message": "Known AI services, unless set below"
+  },
+  "optDefaultActionHelp": {
+    "message": "Allow: opens normally and what you send is checked. Warn: asks for a reason first. Block: cannot be opened."
+  },
+  "actAllow": {
+    "message": "Allow"
+  },
+  "actWarn": {
+    "message": "Warn"
+  },
+  "actBlock": {
+    "message": "Block"
+  },
+  "actOff": {
+    "message": "Off"
+  },
+  "actDefault": {
+    "message": "Default"
+  },
+  "secServices": {
+    "message": "AI services"
+  },
+  "secServicesHelp": {
+    "message": "A service covers its domains and every sub-domain. Add your own for a service that is not listed."
+  },
+  "optFilter": {
+    "message": "Search services"
+  },
+  "colService": {
+    "message": "Service"
+  },
+  "colDomains": {
+    "message": "Domains"
+  },
+  "colAction": {
+    "message": "Action"
+  },
+  "optAddService": {
+    "message": "Add a service"
+  },
+  "optServiceName": {
+    "message": "Name"
+  },
+  "optServiceDomains": {
+    "message": "Domains, separated by commas"
+  },
+  "optAdd": {
+    "message": "Add"
+  },
+  "optRemove": {
+    "message": "Remove"
+  },
+  "ownService": {
+    "message": "Added by you"
+  },
+  "secChecks": {
+    "message": "Checks on AI sites"
+  },
+  "secChecksHelp": {
+    "message": "Applies to every AI service that is not blocked. The check runs in this browser before anything is sent."
+  },
+  "optCheckPrompts": {
+    "message": "Check the messages I send"
+  },
+  "optCheckFiles": {
+    "message": "Check the files I attach (text, Word, Excel, PowerPoint)"
+  },
+  "optUnscannable": {
+    "message": "Files that cannot be read here (images, PDF, archives)"
+  },
+  "optUnscannableHelp": {
+    "message": "The free edition does not read text inside images or PDF files."
+  },
+  "secRules": {
+    "message": "Data rules"
+  },
+  "secRulesHelp": {
+    "message": "Warn: shows what was found and offers to mask it or send anyway. Block: the message or file is not sent."
+  },
+  "colRule": {
+    "message": "Rule"
+  },
+  "colKind": {
+    "message": "Kind"
+  },
+  "optAddRule": {
+    "message": "Add your own rule"
+  },
+  "optRuleName": {
+    "message": "Name"
+  },
+  "kindKeyword": {
+    "message": "Keywords"
+  },
+  "kindRegex": {
+    "message": "Regular expression"
+  },
+  "optRulePattern": {
+    "message": "Keywords separated by commas, or an expression"
+  },
+  "optTry": {
+    "message": "Try the rules"
+  },
+  "optTryHelp": {
+    "message": "Type or paste text to see what the rules in force would find. Nothing is saved."
+  },
+  "tryNothing": {
+    "message": "Nothing found."
+  },
+  "tryBlock": {
+    "message": "Would be blocked:"
+  },
+  "tryWarn": {
+    "message": "Would show a warning:"
+  },
+  "secLog": {
+    "message": "Activity log"
+  },
+  "secLogHelp": {
+    "message": "The last 500 events, kept in this browser only. It records the site and the rule, never the text or the file."
+  },
+  "optLogEnabled": {
+    "message": "Keep an activity log"
+  },
+  "colTime": {
+    "message": "Time"
+  },
+  "colWhat": {
+    "message": "Event"
+  },
+  "colDetail": {
+    "message": "Detail"
+  },
+  "optLogEmpty": {
+    "message": "No events yet."
+  },
+  "optLogExport": {
+    "message": "Save as CSV"
+  },
+  "optLogClear": {
+    "message": "Clear the log"
+  },
+  "log_blocked": {
+    "message": "Service blocked"
+  },
+  "log_warned": {
+    "message": "Warning shown"
+  },
+  "log_proceeded": {
+    "message": "Continued after warning"
+  },
+  "log_prompt_blocked": {
+    "message": "Message blocked"
+  },
+  "log_prompt_warned": {
+    "message": "Message warning"
+  },
+  "log_prompt_sent_after_warning": {
+    "message": "Message sent after warning"
+  },
+  "log_file_blocked": {
+    "message": "File blocked"
+  },
+  "log_file_warned": {
+    "message": "File warning"
+  },
+  "log_file_sent_after_warning": {
+    "message": "File attached after warning"
+  },
+  "confirmClearLog": {
+    "message": "Clear the whole activity log?"
+  },
+  "secBackup": {
+    "message": "Backup and sharing"
+  },
+  "secBackupHelp": {
+    "message": "Save the settings as a file to move them to another browser or share them with a team. An administrator can push the same file through browser policy."
+  },
+  "optExport": {
+    "message": "Save settings to a file"
+  },
+  "optImport": {
+    "message": "Load settings from a file"
+  },
+  "optReset": {
+    "message": "Reset to defaults"
+  },
+  "confirmReset": {
+    "message": "Reset every setting to its default? Your own services and rules are removed."
+  },
+  "msgImported": {
+    "message": "Settings loaded."
+  },
+  "msgReset": {
+    "message": "Settings reset."
+  },
+  "errService": {
+    "message": "Enter a name and at least one valid domain, such as example.com."
+  },
+  "errRuleName": {
+    "message": "Enter a name for the rule."
+  },
+  "errRulePattern": {
+    "message": "Enter the keywords or the expression."
+  },
+  "errRuleTooLong": {
+    "message": "The pattern is too long (500 characters at most)."
+  },
+  "errRuleInvalid": {
+    "message": "That is not a valid regular expression."
+  },
+  "errRuleSlow": {
+    "message": "That expression is too slow on some text and would freeze the check. Make it simpler."
+  },
+  "errRuleEmpty": {
+    "message": "That expression matches empty text. It must match at least one character."
+  },
+  "errImport": {
+    "message": "That file is not a settings file."
+  },
+  "needsAccess": {
+    "message": "Needs site access"
+  },
+  "optGrant": {
+    "message": "Grant access"
+  },
+  "errAccess": {
+    "message": "The browser was not given access to that site, so the service was not added."
+  },
+  "optVersion": {
+    "message": "Version"
+  },
+  "optLicence": {
+    "message": "Open source, Apache License 2.0"
+  },
+  "popupServices": {
+    "message": "AI services known"
+  },
+  "popupChecks": {
+    "message": "Checks on AI sites"
+  },
+  "popupChecksBoth": {
+    "message": "Messages and files"
+  },
+  "popupChecksPrompts": {
+    "message": "Messages"
+  },
+  "popupChecksFiles": {
+    "message": "Files"
+  },
+  "popupChecksOff": {
+    "message": "Off"
+  },
+  "popupRules": {
+    "message": "Data rules in force"
+  },
+  "popupToday": {
+    "message": "Last 24 hours"
+  },
+  "popupTodayCounts": {
+    "message": "$1 blocked, $2 warned"
+  },
+  "popupLogOff": {
+    "message": "Log is off"
+  }
+}

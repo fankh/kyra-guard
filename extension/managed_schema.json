@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "settingsJson": {
+      "title": "Settings (JSON)",
+      "description": "The whole settings document as JSON text, in the format the options page saves with 'Save settings to a file'. When set, these settings are used as a whole and cannot be changed in the browser.",
+      "type": "string"
+    }
+  }
+}

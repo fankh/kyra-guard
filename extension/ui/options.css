@@ -1,0 +1,44 @@
+/* Settings page of the free edition; builds on style.css. */
+
+.options.wide { max-width: 920px; }
+.options h2 { font-size: 1.1rem; margin: 0 0 8px; }
+.options h3 { font-size: 0.95rem; margin: 20px 0 8px; }
+.options label.field { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 0.9rem; }
+.options select, .options input[type="search"], .options textarea {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.options input[type="search"], .options textarea { width: 100%; box-sizing: border-box; }
+.options select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.options label.check { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.options .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.options .row input[type="text"] { flex: 1 1 180px; width: auto; }
+.options .scroll { max-height: 380px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px; }
+.options table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.options th, .options td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.options thead th { background: var(--page); font-weight: 600; }
+.options .scroll thead th { position: sticky; top: 0; z-index: 1; }
+.options tbody tr:last-child td { border-bottom: 0; }
+.options td.domains, .options td.detail { color: var(--muted); overflow-wrap: anywhere; }
+.options td small { color: var(--muted); display: block; }
+.options td select { padding: 4px 8px; }
+.options td button { padding: 4px 10px; font-size: 0.85rem; }
+.options pre {
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.85rem ui-monospace, Consolas, monospace;
+}
+.options .actions { justify-content: flex-start; margin-top: 12px; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.tag.block { background: var(--danger-soft); color: var(--danger); }
+.tag.warn { background: var(--warning-soft); color: var(--warning); }
+.tag.note { background: var(--navy-soft); color: var(--navy); }
+.options td .tag { margin-top: 4px; }

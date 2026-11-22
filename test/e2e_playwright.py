@@ -1,0 +1,357 @@
+"""End-to-end check of the free edition in headless Chromium (manual, not CI).
+
+There is no KYRA server. A local web server only serves a stand-in chat page under three test
+domains, which the options page adds as the user's own AI services: one allowed, one warned
+and one blocked. Every request the browser makes is recorded, to show that nothing goes
+anywhere but that page.
+
+    python test/e2e_playwright.py [screenshot-dir]
+
+Uses its own temporary browser profile and never connects to an existing Chrome.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import shutil
+import sys
+import tempfile
+import threading
+import time
+import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlparse
+
+from playwright.sync_api import sync_playwright
+
+EXTENSION_DIR = Path(__file__).resolve().parent.parent / "extension"
+SHOTS = Path(sys.argv[1]) if len(sys.argv) > 1 else None
+POSTS: list[str] = []
+
+PAGE = """<!doctype html><meta charset="utf-8"><title>chat</title>
+<input id="file" type="file" multiple>
+<div id="box" contenteditable="true" style="border:1px solid #888;min-height:40px"></div>
+<button id="send" aria-label="Send message">send</button>
+<script>
+window.sent = []; window.attached = [];
+const box = document.getElementById('box');
+function send() { const t = box.innerText.trim(); if (t) { window.sent.push(t); box.innerText = ''; } }
+box.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+document.getElementById('send').addEventListener('click', send);
+document.getElementById('file').addEventListener('change', (e) => {
+  window.attached.push([...e.target.files].map((f) => f.name));
+});
+</script>"""
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *_args) -> None:
+        pass
+
+    def do_GET(self) -> None:  # noqa: N802
+        data = PAGE.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_POST(self) -> None:  # noqa: N802
+        POSTS.append(self.path)
+        self.send_response(204)
+        self.end_headers()
+
+
+def check(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+    print(f"  ok  {message}")
+
+
+def wait_until(predicate, timeout: float = 10, message: str = "condition"):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(0.1)
+    raise AssertionError(f"timed out waiting for {message}")
+
+
+def docx(text: str) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("word/document.xml", f"<w:document><w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>")
+    return buffer.getvalue()
+
+
+def shot(page, name: str) -> None:
+    if SHOTS:
+        SHOTS.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(SHOTS / name), full_page=True)
+
+
+def main() -> int:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    chat = f"http://chat.allow-ai.test:{port}/"
+    requests: list[str] = []
+
+    with tempfile.TemporaryDirectory() as profile, tempfile.TemporaryDirectory() as tmp, sync_playwright() as p:
+        files = Path(tmp)
+        (files / "notes.txt").write_text("meeting notes, nothing sensitive", encoding="utf-8")
+        (files / "cards.csv").write_text("name,card\nKim,4111 1111 1111 1111\n", encoding="utf-8")
+        (files / "report.docx").write_bytes(docx("주민번호 900101-1234567"))
+        (files / "phones.txt").write_text("call 010-1234-5678", encoding="utf-8")
+        (files / "photo.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+
+        # The browser's own "allow access to this site?" prompt cannot be pressed in a headless
+        # browser, so this run uses a copy of the extension that has the test domains from the
+        # install, as the known AI sites are. check_ungranted() below covers a site without access.
+        extension = files / "extension"
+        shutil.copytree(EXTENSION_DIR, extension)
+        manifest = json.loads((extension / "manifest.json").read_text(encoding="utf-8"))
+        manifest["host_permissions"].append("*://*.test/*")
+        (extension / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        context = p.chromium.launch_persistent_context(
+            profile, channel="chromium", headless=True, locale="ko-KR", viewport={"width": 1100, "height": 900},
+            args=[f"--disable-extensions-except={extension}", f"--load-extension={extension}",
+                  "--lang=ko", "--host-resolver-rules=MAP *.test 127.0.0.1"])
+        context.on("request", lambda r: requests.append(r.url))
+        try:
+            sw = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
+            origin = "chrome-extension://" + sw.url.split("/")[2]
+            log = lambda: sw.evaluate("chrome.storage.local.get('activityLog').then(r => r.activityLog || [])")  # noqa: E731
+
+            print("1. a new install: every known service allowed, checks on, settings page in Korean")
+            options = context.new_page()
+            options.goto(f"{origin}/options.html")
+            options.wait_for_selector("#services tbody tr")
+            check(options.locator("#services tbody tr").count() == 51, "the 51 known AI services are listed")
+            check("이 브라우저에만 저장" in options.inner_text("body"), "the page says everything stays in this browser")
+            check(sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") == 0, "nothing is blocked or warned yet")
+            scripts = wait_until(lambda: sw.evaluate("chrome.scripting.getRegisteredContentScripts()"), message="page script")
+            check("*://*.chatgpt.com/*" in scripts[0]["matches"], "the page script covers the known AI sites")
+
+            print("2. own services: one allowed, one warned, one blocked")
+            for name, domain, action in (("Allow AI", "allow-ai.test", "allow"), ("Warn AI", "warn-ai.test", "alert"),
+                                         ("Block AI", "block-ai.test", "block")):
+                options.fill("#service-name", name)
+                options.fill("#service-domains", domain)
+                options.select_option("#service-action", action)
+                options.click("#service-form button[type=submit]")
+                options.wait_for_selector(f"#services tbody tr:has-text('{domain}')")
+            options.fill("#service-name", "Bad")
+            options.fill("#service-domains", "not a domain")
+            options.click("#service-form button[type=submit]")
+            check(options.is_visible("#error"), "a service without a valid domain is refused")
+            wait_until(lambda: sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") >= 3,
+                       message="rules for the warned and blocked services")
+            wait_until(lambda: "*://*.allow-ai.test/*" in sw.evaluate(
+                "chrome.scripting.getRegisteredContentScripts().then(s => s[0].matches)"), message="page script for the new site")
+            check("*://*.block-ai.test/*" not in sw.evaluate("chrome.scripting.getRegisteredContentScripts().then(s => s[0].matches)"),
+                  "no page script on the blocked site")
+
+            print("3. an own rule, and the try box")
+            options.fill("#rule-name", "Slow")
+            options.select_option("#rule-type", "regex")
+            options.fill("#rule-pattern", "(a+)+$")
+            options.click("#rule-form button[type=submit]")
+            check("처리 시간" in options.inner_text("#error"), "a slow expression is refused")
+            options.fill("#rule-name", "프로젝트 코드")
+            options.select_option("#rule-type", "keyword")
+            options.fill("#rule-pattern", "대외비, apollo")
+            options.select_option("#rule-action", "block")
+            options.click("#rule-form button[type=submit]")
+            options.wait_for_selector("#rules tbody tr:has-text('프로젝트 코드')")
+            options.fill("#try-text", "apollo 계획은 대외비이며 담당자 연락처는 010-1234-5678")
+            wait_until(lambda: "차단 대상" in options.inner_text("#try-result"), message="try result")
+            check(options.inner_text("#try-masked") == "[프로젝트 코드] 계획은 [프로젝트 코드]이며 담당자 연락처는 [휴대전화번호]",
+                  "the try box shows what would be masked")
+            shot(options, "free-options.png")
+
+            page = context.new_page()
+            page.goto(chat)
+            sent = lambda: page.evaluate("window.sent")  # noqa: E731
+            attached = lambda: page.evaluate("window.attached")  # noqa: E731
+            box = page.locator("#box")
+            notice = lambda: page.evaluate(  # noqa: E731 - the notice lives in a closed shadow root
+                "[...document.documentElement.children].some(e => e.tagName === 'DIV' && !e.id && e !== document.body)")
+
+            print("4. messages on the allowed site")
+            wait_until(lambda: page.evaluate("!!document.getElementById('kyra-inspection-notice')"), message="notice that checks run")
+            box.click(); page.keyboard.type("hello there"); page.keyboard.press("Enter")
+            wait_until(lambda: sent() == ["hello there"], message="clean message sent")
+            time.sleep(0.8)
+            check(sent() == ["hello there"], "a clean message is sent exactly once")
+
+            box.click(); page.keyboard.type("my number is 900101-1234567"); page.keyboard.press("Enter")
+            wait_until(notice, message="block notice")
+            shot(page, "free-blocked-message.png")
+            check(len(sent()) == 1, "a message with a resident number is not sent")
+            page.keyboard.press("Escape")
+            wait_until(lambda: not notice(), message="notice closed")
+            page.evaluate("document.getElementById('box').innerText = ''")
+
+            box.click(); page.keyboard.type("this is 대외비를 포함"); page.click("#send")
+            wait_until(notice, message="block notice for the own rule")
+            check(len(sent()) == 1, "the own keyword rule blocks, with a particle attached, by the button too")
+            page.keyboard.press("Escape")
+            page.evaluate("document.getElementById('box').innerText = ''")
+
+            box.click(); page.keyboard.type("call 010-1234-5678 today"); page.keyboard.press("Enter")
+            wait_until(notice, message="warning")
+            shot(page, "free-warned-message.png")
+            check(len(sent()) == 1, "a warned message is held")
+            page.keyboard.press("Shift+Tab")  # Edit (focused) -> Mask and send
+            page.keyboard.press("Enter")
+            wait_until(lambda: len(sent()) == 2, message="masked message sent")
+            check(sent()[1] == "call [휴대전화번호] today", "Mask and send sends the masked text, not the original")
+
+            box.click(); page.keyboard.type("fax 010-1234-5678"); page.keyboard.press("Enter")
+            wait_until(notice, message="second warning")
+            page.keyboard.press("Shift+Tab"); page.keyboard.press("Shift+Tab")  # -> Send anyway
+            page.keyboard.press("Enter")
+            wait_until(lambda: len(sent()) == 3, message="sent after the warning")
+            check(sent()[2] == "fax 010-1234-5678", "Send anyway sends the original")
+            time.sleep(0.5)
+            check(len(sent()) == 3, "sent exactly once")
+
+            print("5. files on the allowed site")
+            page.set_input_files("#file", str(files / "notes.txt"))
+            wait_until(lambda: attached() == [["notes.txt"]], message="clean file attached")
+            page.set_input_files("#file", str(files / "cards.csv"))
+            wait_until(notice, message="block notice for the file")
+            check(len(attached()) == 1 and page.evaluate("document.getElementById('file').files.length") == 0,
+                  "a file with a card number never reaches the page")
+            page.keyboard.press("Escape")
+            page.set_input_files("#file", str(files / "report.docx"))
+            wait_until(notice, message="block notice for the Word document")
+            check(len(attached()) == 1, "a resident number inside a Word document is found")
+            page.keyboard.press("Escape")
+            page.set_input_files("#file", str(files / "photo.png"))
+            wait_until(lambda: len(attached()) == 2, message="image attached")
+            check(attached()[1] == ["photo.png"], "an image is let through by default (it cannot be read here)")
+
+            print("6. the warned and the blocked site")
+            blocked = context.new_page()
+            blocked.goto(f"http://www.block-ai.test:{port}/x")
+            blocked.wait_for_selector("#body")
+            check(blocked.url.startswith(f"{origin}/blocked.html") and "Block AI" in blocked.inner_text("body"),
+                  "the blocked service shows the blocked page")
+            shot(blocked, "free-blocked-site.png")
+            blocked.close()
+            warned = context.new_page()
+            warned.goto(f"http://app.warn-ai.test:{port}/start")
+            warned.wait_for_selector("#reason")
+            check(warned.url.startswith(f"{origin}/warn.html"), "the warned service asks first")
+            warned.fill("#reason", "공개 문서 확인")
+            warned.click("#continue")
+            warned.wait_for_url(f"http://app.warn-ai.test:{port}/start")
+            check(True, "with a reason, the service opens")
+            warned.close()
+
+            print("7. the activity log: what happened, never the text")
+            entries = wait_until(lambda: (lambda e: e if len(e) >= 9 else None)(log()), message="log entries")
+            actions = sorted({e["action"] for e in entries})
+            check(actions == ["blocked", "file_blocked", "proceeded", "prompt_blocked", "prompt_sent_after_warning",
+                              "prompt_warned", "warned"], f"the log has each kind of event ({len(entries)} entries)")
+            dumped = json.dumps(entries, ensure_ascii=False)
+            check("1234567" not in dumped and "010-1234" not in dumped and "4111" not in dumped and "대외비" not in dumped,
+                  "no message or file text is in the log")
+            check(any(e.get("fileName") == "cards.csv" and e["rules"] == ["Payment card number"] for e in entries),
+                  "a file entry names the file and the rule")
+            check(any(e["action"] == "proceeded" and e.get("reason") == "공개 문서 확인" for e in entries), "the reason is kept")
+            options.bring_to_front()
+            wait_until(lambda: options.locator("#log tbody tr").count() >= 9, message="log table")
+            options.locator("#log").scroll_into_view_if_needed()
+            shot(options, "free-log.png")
+            with options.expect_download() as download:
+                options.click("#log-export")
+            csv = Path(download.value.path()).read_text(encoding="utf-8-sig")
+            check(csv.startswith("time,action,service,site,rules,file,reason") and "cards.csv" in csv, "the log saves as CSV")
+
+            print("8. the popup, and saving and loading the settings")
+            popup = context.new_page()
+            popup.goto(f"{origin}/popup.html")
+            wait_until(lambda: popup.inner_text("#services") == "54", message="popup")
+            check(popup.inner_text("#blocked-count") == "1" and popup.inner_text("#warned-count") == "1", "the popup counts the services")
+            check(popup.inner_text("#checks") == "메시지 및 파일" and "차단" in popup.inner_text("#today"), "and shows checks and today's events")
+            shot(popup, "free-popup.png")
+            popup.close()
+            with options.expect_download() as download:
+                options.click("#settings-export")
+            saved = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
+            check(len(saved["customServices"]) == 3 and saved["customRules"][0]["pattern"] == "대외비, apollo", "the settings save to a file")
+            options.once("dialog", lambda d: d.accept())
+            options.click("#settings-reset")
+            wait_until(lambda: options.locator("#services tbody tr").count() == 51, message="reset")
+            wait_until(lambda: sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") == 0, message="rules removed")
+            saved_path = files / "settings.json"
+            saved_path.write_text(json.dumps(saved), encoding="utf-8")
+            options.set_input_files("#import-file", str(saved_path))
+            wait_until(lambda: options.locator("#services tbody tr").count() == 54, message="import")
+            wait_until(lambda: sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") >= 3, message="rules back")
+            check(True, "reset removes them and loading the file brings them back")
+
+            print("9. nothing left the browser")
+            outside = sorted({urlparse(u).hostname for u in requests
+                              if urlparse(u).scheme in ("http", "https") and not (urlparse(u).hostname or "").endswith(".test")})
+            check(outside == [], f"every web request went to the test page only ({len(requests)} requests seen)")
+            check(POSTS == [], "nothing was posted to the web server")
+        finally:
+            context.close()
+            server.shutdown()
+    check_ungranted()
+    print("ALL OK")
+    return 0
+
+
+def check_ungranted() -> None:
+    """The extension as shipped: an own service on a site the browser has no access to."""
+    print("10. as shipped: a site without access waits, and does not disturb the rest")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    with tempfile.TemporaryDirectory() as profile, sync_playwright() as p:
+        context = p.chromium.launch_persistent_context(
+            profile, channel="chromium", headless=True, locale="en-US",
+            args=[f"--disable-extensions-except={EXTENSION_DIR}", f"--load-extension={EXTENSION_DIR}",
+                  "--host-resolver-rules=MAP *.test 127.0.0.1"])
+        try:
+            sw = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
+            origin = "chrome-extension://" + sw.url.split("/")[2]
+            granted = sw.evaluate("chrome.permissions.getAll().then(p => p.origins)")
+            check("*://*.chatgpt.com/*" in granted and not any("<all_urls>" in o or o == "*://*/*" for o in granted),
+                  f"access at install is the known AI sites only ({len(granted)} patterns)")
+            # Settings that arrive without a click (a loaded file, or pushed by an administrator).
+            sw.evaluate("""chrome.storage.local.set({settings: {customServices: [
+                {name: 'Block AI', domains: ['block-ai.test'], action: 'block'}]}})""")
+            options = context.new_page()
+            options.goto(f"{origin}/options.html")
+            row = options.locator("#services tbody tr", has_text="block-ai.test")
+            row.wait_for()
+            check("Needs site access" in row.inner_text() and row.get_by_role("button", name="Grant access").count() == 1,
+                  "the settings page marks the service and offers to give access")
+            status = options.evaluate("chrome.runtime.sendMessage({type: 'status'})")
+            check(status["pending"] == ["custom-block-ai-test"] and status["services"] == 51 and status["counts"]["block"] == 0,
+                  "the worker leaves it out until access is given")
+            scripts = sw.evaluate("chrome.scripting.getRegisteredContentScripts()")
+            check(len(scripts) == 1 and "*://*.chatgpt.com/*" in scripts[0]["matches"], "checks on the known sites still work")
+            page = context.new_page()
+            page.goto(f"http://www.block-ai.test:{port}/")
+            check(page.url.startswith("http://www.block-ai.test"), "the site is not blocked yet")
+        finally:
+            context.close()
+            server.shutdown()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="optionsPageTitle">Settings — KYRA AI Guardrail Free</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="ui/style.css">
+  <link rel="stylesheet" href="ui/options.css">
+  <script type="module" src="ui/options.js"></script>
+</head>
+<body>
+  <div class="options wide">
+    <div class="brand"><img src="icons/icon32.png" alt=""><span data-i18n="extName">KYRA AI Guardrail Free</span></div>
+    <p class="help" data-i18n="localNotice"></p>
+    <p class="banner" id="managed-banner" hidden data-i18n="optionsManaged"></p>
+    <p class="error" id="error" role="alert" hidden></p>
+
+    <section>
+      <h2 data-i18n="secGeneral"></h2>
+      <label class="field" for="organisation" data-i18n="optOrganisation"></label>
+      <input type="text" id="organisation" maxlength="80" autocomplete="off" data-i18n-placeholder="optOrganisationHint">
+      <label class="field" for="defaultAction" data-i18n="optDefaultAction"></label>
+      <select id="defaultAction">
+        <option value="allow" data-i18n="actAllow"></option>
+        <option value="alert" data-i18n="actWarn"></option>
+        <option value="block" data-i18n="actBlock"></option>
+      </select>
+      <p class="help" data-i18n="optDefaultActionHelp"></p>
+    </section>
+
+    <section>
+      <h2 data-i18n="secServices"></h2>
+      <p class="help" data-i18n="secServicesHelp"></p>
+      <input type="search" id="service-filter" data-i18n-placeholder="optFilter" data-i18n-aria-label="optFilter">
+      <div class="scroll">
+        <table id="services">
+          <thead><tr><th data-i18n="colService"></th><th data-i18n="colDomains"></th><th data-i18n="colAction"></th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3 data-i18n="optAddService"></h3>
+      <form id="service-form" class="row" novalidate>
+        <input type="text" id="service-name" maxlength="80" data-i18n-placeholder="optServiceName" data-i18n-aria-label="optServiceName">
+        <input type="text" id="service-domains" data-i18n-placeholder="optServiceDomains" data-i18n-aria-label="optServiceDomains">
+        <select id="service-action" data-i18n-aria-label="colAction">
+          <option value="alert" data-i18n="actWarn"></option>
+          <option value="block" data-i18n="actBlock"></option>
+          <option value="allow" data-i18n="actAllow"></option>
+        </select>
+        <button type="submit" data-i18n="optAdd"></button>
+      </form>
+    </section>
+
+    <section>
+      <h2 data-i18n="secChecks"></h2>
+      <p class="help" data-i18n="secChecksHelp"></p>
+      <label class="check"><input type="checkbox" id="check-prompts"><span data-i18n="optCheckPrompts"></span></label>
+      <label class="check"><input type="checkbox" id="check-files"><span data-i18n="optCheckFiles"></span></label>
+      <label class="field" for="unscannable" data-i18n="optUnscannable"></label>
+      <select id="unscannable">
+        <option value="allow" data-i18n="actAllow"></option>
+        <option value="warn" data-i18n="actWarn"></option>
+        <option value="block" data-i18n="actBlock"></option>
+      </select>
+      <p class="help" data-i18n="optUnscannableHelp"></p>
+    </section>
+
+    <section>
+      <h2 data-i18n="secRules"></h2>
+      <p class="help" data-i18n="secRulesHelp"></p>
+      <table id="rules">
+        <thead><tr><th data-i18n="colRule"></th><th data-i18n="colKind"></th><th data-i18n="colAction"></th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <h3 data-i18n="optAddRule"></h3>
+      <form id="rule-form" class="row" novalidate>
+        <input type="text" id="rule-name" maxlength="80" data-i18n-placeholder="optRuleName" data-i18n-aria-label="optRuleName">
+        <select id="rule-type" data-i18n-aria-label="colKind">
+          <option value="keyword" data-i18n="kindKeyword"></option>
+          <option value="regex" data-i18n="kindRegex"></option>
+        </select>
+        <input type="text" id="rule-pattern" maxlength="500" spellcheck="false" data-i18n-placeholder="optRulePattern" data-i18n-aria-label="optRulePattern">
+        <select id="rule-action" data-i18n-aria-label="colAction">
+          <option value="warn" data-i18n="actWarn"></option>
+          <option value="block" data-i18n="actBlock"></option>
+        </select>
+        <button type="submit" data-i18n="optAdd"></button>
+      </form>
+      <h3 data-i18n="optTry"></h3>
+      <p class="help" data-i18n="optTryHelp"></p>
+      <textarea id="try-text" rows="4" spellcheck="false" data-i18n-aria-label="optTry"></textarea>
+      <p class="help" id="try-result" aria-live="polite"></p>
+      <pre id="try-masked" hidden></pre>
+    </section>
+
+    <section>
+      <h2 data-i18n="secLog"></h2>
+      <p class="help" data-i18n="secLogHelp"></p>
+      <label class="check"><input type="checkbox" id="log-enabled"><span data-i18n="optLogEnabled"></span></label>
+      <div class="scroll">
+        <table id="log">
+          <thead><tr><th data-i18n="colTime"></th><th data-i18n="colWhat"></th><th data-i18n="colService"></th><th data-i18n="colDetail"></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="help" id="log-empty" data-i18n="optLogEmpty" hidden></p>
+      <div class="actions">
+        <button type="button" id="log-export" data-i18n="optLogExport"></button>
+        <button type="button" id="log-clear" data-i18n="optLogClear"></button>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="secBackup"></h2>
+      <p class="help" data-i18n="secBackupHelp"></p>
+      <div class="actions">
+        <button type="button" id="settings-export" data-i18n="optExport"></button>
+        <button type="button" id="settings-import" data-i18n="optImport"></button>
+        <button type="button" id="settings-reset" data-i18n="optReset"></button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+      <p class="help" id="message" aria-live="polite"></p>
+    </section>
+
+    <p class="help"><span data-i18n="optVersion"></span> <span id="version"></span> · <span data-i18n="optLicence"></span></p>
+  </div>
+</body>
+</html>

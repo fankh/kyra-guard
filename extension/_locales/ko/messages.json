@@ -1,0 +1,499 @@
+{
+  "managedNotice": {
+    "message": "이 브라우저의 AI 서비스 사용은 이 확장 프로그램에 설정된 정책을 따릅니다."
+  },
+  "extName": {
+    "message": "KYRA AI Guardrail Free"
+  },
+  "extDescription": {
+    "message": "AI 서비스를 경고하거나 차단하고, 보내는 내용에 개인정보와 키가 있는지 검사합니다. 모든 처리는 이 브라우저 안에서 이루어집니다."
+  },
+  "yourCompany": {
+    "message": "이 브라우저에 설정된 AI 정책"
+  },
+  "unknownService": {
+    "message": "이 AI 서비스"
+  },
+  "labelService": {
+    "message": "서비스"
+  },
+  "labelSite": {
+    "message": "사이트"
+  },
+  "labelCompany": {
+    "message": "정책"
+  },
+  "goBack": {
+    "message": "뒤로 가기"
+  },
+  "blockedPageTitle": {
+    "message": "차단됨 — KYRA AI Guardrail Free"
+  },
+  "blockedHeading": {
+    "message": "차단된 AI 서비스입니다"
+  },
+  "blockedBody": {
+    "message": "$SERVICE$ 서비스는 $COMPANY$에서 차단하여 이 브라우저에서 열 수 없습니다.",
+    "placeholders": {
+      "service": {
+        "content": "$1"
+      },
+      "company": {
+        "content": "$2"
+      }
+    }
+  },
+  "blockedHelp": {
+    "message": "확장 프로그램 설정에서 지정된 내용입니다. 관리자가 설정을 관리하는 경우 IT 또는 보안 담당 부서에 문의해 주세요."
+  },
+  "blockedFramed": {
+    "message": "AI 정책에 따라 차단됨"
+  },
+  "warnPageTitle": {
+    "message": "경고 — KYRA AI Guardrail Free"
+  },
+  "warnHeading": {
+    "message": "이 AI 서비스는 주의가 필요합니다"
+  },
+  "warnBody": {
+    "message": "$COMPANY$에서 $SERVICE$ 서비스에 경고를 표시하도록 지정했습니다. 회사, 고객 또는 개인 정보를 입력하지 마세요.",
+    "placeholders": {
+      "service": {
+        "content": "$1"
+      },
+      "company": {
+        "content": "$2"
+      }
+    }
+  },
+  "warnReasonLabel": {
+    "message": "사용해야 하는 이유 (필수)"
+  },
+  "warnReasonPlaceholder": {
+    "message": "예: 공개 API 문서 확인"
+  },
+  "warnNotice": {
+    "message": "계속하면 사유와 사이트 이름이 이 브라우저의 활동 기록에 남고 이 서비스가 $MINUTES$분 동안 허용됩니다. 외부로 전송되는 정보는 없습니다.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1"
+      }
+    }
+  },
+  "warnContinue": {
+    "message": "계속"
+  },
+  "reasonCounter": {
+    "message": "$COUNT$ / $MAX$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "max": {
+        "content": "$2"
+      }
+    }
+  },
+  "proceedFailed": {
+    "message": "계속할 수 없습니다. 다시 시도해 주세요."
+  },
+  "popupBlockedCount": {
+    "message": "차단 서비스"
+  },
+  "popupWarnedCount": {
+    "message": "경고 서비스"
+  },
+  "popupSettings": {
+    "message": "설정"
+  },
+  "optionsPageTitle": {
+    "message": "설정 — KYRA AI Guardrail Free"
+  },
+  "optionsManaged": {
+    "message": "이 설정은 조직에서 관리하며 여기에서 변경할 수 없습니다."
+  },
+  "promptBlockedTitle": {
+    "message": "메시지를 전송하지 않았습니다"
+  },
+  "promptBlockedBody": {
+    "message": "$1에서 AI 서비스로 보내는 것을 허용하지 않는 정보가 포함되어 있습니다."
+  },
+  "promptBlockedNote": {
+    "message": "아래 정보를 지우고 다시 보내 주세요. 검사는 이 브라우저 안에서 수행되었으며 입력한 내용은 어디에도 전송되지 않았습니다."
+  },
+  "promptWarnTitle": {
+    "message": "전송 전에 확인해 주세요"
+  },
+  "promptWarnBody": {
+    "message": "$1에서 AI 서비스로 보내지 않도록 안내한 정보가 포함되어 있을 수 있습니다."
+  },
+  "promptWarnNote": {
+    "message": "그대로 보내면 그 사실이 이 브라우저의 활동 기록에 남습니다(입력한 내용은 남지 않습니다)."
+  },
+  "promptUnavailableTitle": {
+    "message": "메시지를 전송하지 않았습니다"
+  },
+  "promptUnavailableBody": {
+    "message": "메시지를 검사할 수 없으며, $1에서는 검사하지 않은 메시지를 AI 서비스로 보낼 수 없습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "promptEdit": {
+    "message": "메시지 수정"
+  },
+  "promptSendAnyway": {
+    "message": "그대로 전송"
+  },
+  "promptCategoryPii": {
+    "message": "개인정보"
+  },
+  "promptCategoryFinancial": {
+    "message": "금융정보"
+  },
+  "promptCategoryCredentials": {
+    "message": "비밀번호·인증 키"
+  },
+  "promptCategoryHealthcare": {
+    "message": "건강·의료정보"
+  },
+  "promptCategoryIp": {
+    "message": "기밀 자료"
+  },
+  "promptCategoryCustom": {
+    "message": "사용자 규칙"
+  },
+  "fileBlockedTitle": {
+    "message": "파일을 첨부하지 않았습니다"
+  },
+  "fileBlockedBody": {
+    "message": "$1에서 AI 서비스로 보내는 것을 허용하지 않는 파일입니다."
+  },
+  "fileBlockedNote": {
+    "message": "검사는 이 브라우저 안에서 수행되었습니다. 활동 기록에는 파일 이름과 일치한 규칙만 남고 파일은 남지 않습니다."
+  },
+  "fileWarnTitle": {
+    "message": "첨부 전에 파일을 확인해 주세요"
+  },
+  "fileWarnBody": {
+    "message": "$1에서 AI 서비스로 보내지 않도록 안내한 정보가 포함되어 있을 수 있습니다."
+  },
+  "fileWarnNote": {
+    "message": "그대로 첨부하면 그 사실이 이 브라우저의 활동 기록에 남습니다."
+  },
+  "fileUnscannable": {
+    "message": "검사할 수 없는 형식의 파일"
+  },
+  "fileUnavailable": {
+    "message": "지금은 검사할 수 없음"
+  },
+  "fileTooMany": {
+    "message": "파일을 하나씩 검사할 수 있도록 한 번에 $1개까지만 첨부해 주세요."
+  },
+  "fileClose": {
+    "message": "닫기"
+  },
+  "fileCancel": {
+    "message": "첨부 안 함"
+  },
+  "fileSendAnyway": {
+    "message": "그대로 첨부"
+  },
+  "promptMaskAndSend": {
+    "message": "마스킹하여 전송"
+  },
+  "promptMustMaskNote": {
+    "message": "메시지를 수정하거나, 위 정보를 마스킹하여 전송해 주세요."
+  },
+  "promptMaskFailedTitle": {
+    "message": "메시지를 마스킹하지 못했습니다"
+  },
+  "promptMaskFailedBody": {
+    "message": "이 페이지에서 내용을 바꿀 수 없어 전송하지 않았습니다. 해당 정보를 직접 삭제한 뒤 다시 전송해 주세요."
+  },
+  "noticeInspectionPrompts": {
+    "message": "AI 사이트에서 보내는 메시지는 전송 전에 이 브라우저 안에서 설정된 데이터 규칙으로 검사됩니다. 다른 곳으로 전송되는 정보는 없습니다."
+  },
+  "noticeInspectionFiles": {
+    "message": "AI 사이트에 첨부하는 파일의 텍스트는 전송 전에 이 브라우저 안에서 설정된 데이터 규칙으로 검사됩니다. 다른 곳으로 전송되는 정보는 없습니다."
+  },
+  "noticeInspectionBoth": {
+    "message": "AI 사이트에서 보내는 메시지와 첨부하는 파일의 텍스트는 전송 전에 이 브라우저 안에서 설정된 데이터 규칙으로 검사됩니다. 다른 곳으로 전송되는 정보는 없습니다."
+  },
+  "localNotice": {
+    "message": "모든 설정과 활동 기록은 이 브라우저에만 저장됩니다. 이 확장 프로그램은 어떤 서버에도 연결하지 않습니다."
+  },
+  "secGeneral": {
+    "message": "일반"
+  },
+  "optOrganisation": {
+    "message": "조직 이름 (선택)"
+  },
+  "optOrganisationHint": {
+    "message": "차단 및 경고 화면에 표시됩니다"
+  },
+  "optDefaultAction": {
+    "message": "아래에서 따로 지정하지 않은 AI 서비스"
+  },
+  "optDefaultActionHelp": {
+    "message": "허용: 정상적으로 열리며 보내는 내용을 검사합니다. 경고: 먼저 사유를 입력해야 합니다. 차단: 열 수 없습니다."
+  },
+  "actAllow": {
+    "message": "허용"
+  },
+  "actWarn": {
+    "message": "경고"
+  },
+  "actBlock": {
+    "message": "차단"
+  },
+  "actOff": {
+    "message": "사용 안 함"
+  },
+  "actDefault": {
+    "message": "기본값"
+  },
+  "secServices": {
+    "message": "AI 서비스"
+  },
+  "secServicesHelp": {
+    "message": "서비스는 해당 도메인과 모든 하위 도메인에 적용됩니다. 목록에 없는 서비스는 직접 추가할 수 있습니다."
+  },
+  "optFilter": {
+    "message": "서비스 검색"
+  },
+  "colService": {
+    "message": "서비스"
+  },
+  "colDomains": {
+    "message": "도메인"
+  },
+  "colAction": {
+    "message": "동작"
+  },
+  "optAddService": {
+    "message": "서비스 추가"
+  },
+  "optServiceName": {
+    "message": "이름"
+  },
+  "optServiceDomains": {
+    "message": "도메인(쉼표로 구분)"
+  },
+  "optAdd": {
+    "message": "추가"
+  },
+  "optRemove": {
+    "message": "삭제"
+  },
+  "ownService": {
+    "message": "직접 추가함"
+  },
+  "secChecks": {
+    "message": "AI 사이트 검사"
+  },
+  "secChecksHelp": {
+    "message": "차단하지 않은 모든 AI 서비스에 적용됩니다. 검사는 전송 전에 이 브라우저 안에서 수행됩니다."
+  },
+  "optCheckPrompts": {
+    "message": "보내는 메시지 검사"
+  },
+  "optCheckFiles": {
+    "message": "첨부하는 파일 검사(텍스트, Word, Excel, PowerPoint)"
+  },
+  "optUnscannable": {
+    "message": "여기에서 읽을 수 없는 파일(이미지, PDF, 압축 파일)"
+  },
+  "optUnscannableHelp": {
+    "message": "무료 버전은 이미지와 PDF 파일 안의 텍스트를 읽지 않습니다."
+  },
+  "secRules": {
+    "message": "데이터 규칙"
+  },
+  "secRulesHelp": {
+    "message": "경고: 발견한 항목을 보여 주고 가려서 보내거나 그대로 보낼 수 있습니다. 차단: 메시지 또는 파일을 보내지 않습니다."
+  },
+  "colRule": {
+    "message": "규칙"
+  },
+  "colKind": {
+    "message": "종류"
+  },
+  "optAddRule": {
+    "message": "사용자 규칙 추가"
+  },
+  "optRuleName": {
+    "message": "이름"
+  },
+  "kindKeyword": {
+    "message": "키워드"
+  },
+  "kindRegex": {
+    "message": "정규식"
+  },
+  "optRulePattern": {
+    "message": "쉼표로 구분한 키워드 또는 정규식"
+  },
+  "optTry": {
+    "message": "규칙 시험"
+  },
+  "optTryHelp": {
+    "message": "텍스트를 입력하거나 붙여 넣으면 현재 규칙으로 찾는 항목을 확인할 수 있습니다. 저장되는 내용은 없습니다."
+  },
+  "tryNothing": {
+    "message": "발견한 항목이 없습니다."
+  },
+  "tryBlock": {
+    "message": "차단 대상:"
+  },
+  "tryWarn": {
+    "message": "경고 대상:"
+  },
+  "secLog": {
+    "message": "활동 기록"
+  },
+  "secLogHelp": {
+    "message": "최근 500건을 이 브라우저에만 보관합니다. 사이트와 규칙만 기록하며 입력 내용과 파일은 기록하지 않습니다."
+  },
+  "optLogEnabled": {
+    "message": "활동 기록 보관"
+  },
+  "colTime": {
+    "message": "시각"
+  },
+  "colWhat": {
+    "message": "이벤트"
+  },
+  "colDetail": {
+    "message": "상세"
+  },
+  "optLogEmpty": {
+    "message": "아직 기록된 이벤트가 없습니다."
+  },
+  "optLogExport": {
+    "message": "CSV로 저장"
+  },
+  "optLogClear": {
+    "message": "기록 지우기"
+  },
+  "log_blocked": {
+    "message": "서비스 차단"
+  },
+  "log_warned": {
+    "message": "경고 표시"
+  },
+  "log_proceeded": {
+    "message": "경고 후 계속"
+  },
+  "log_prompt_blocked": {
+    "message": "메시지 차단"
+  },
+  "log_prompt_warned": {
+    "message": "메시지 경고"
+  },
+  "log_prompt_sent_after_warning": {
+    "message": "경고 후 메시지 전송"
+  },
+  "log_file_blocked": {
+    "message": "파일 차단"
+  },
+  "log_file_warned": {
+    "message": "파일 경고"
+  },
+  "log_file_sent_after_warning": {
+    "message": "경고 후 파일 첨부"
+  },
+  "confirmClearLog": {
+    "message": "활동 기록을 모두 지우시겠습니까?"
+  },
+  "secBackup": {
+    "message": "백업 및 공유"
+  },
+  "secBackupHelp": {
+    "message": "설정을 파일로 저장하여 다른 브라우저로 옮기거나 팀과 공유할 수 있습니다. 관리자는 같은 파일을 브라우저 정책으로 배포할 수 있습니다."
+  },
+  "optExport": {
+    "message": "설정을 파일로 저장"
+  },
+  "optImport": {
+    "message": "파일에서 설정 불러오기"
+  },
+  "optReset": {
+    "message": "기본값으로 초기화"
+  },
+  "confirmReset": {
+    "message": "모든 설정을 기본값으로 초기화하시겠습니까? 직접 추가한 서비스와 규칙이 삭제됩니다."
+  },
+  "msgImported": {
+    "message": "설정을 불러왔습니다."
+  },
+  "msgReset": {
+    "message": "설정을 초기화했습니다."
+  },
+  "errService": {
+    "message": "이름과 올바른 도메인(예: example.com)을 하나 이상 입력해 주세요."
+  },
+  "errRuleName": {
+    "message": "규칙 이름을 입력해 주세요."
+  },
+  "errRulePattern": {
+    "message": "키워드 또는 정규식을 입력해 주세요."
+  },
+  "errRuleTooLong": {
+    "message": "패턴이 너무 깁니다(최대 500자)."
+  },
+  "errRuleInvalid": {
+    "message": "올바른 정규식이 아닙니다."
+  },
+  "errRuleSlow": {
+    "message": "일부 텍스트에서 처리 시간이 너무 길어 검사가 멈출 수 있는 정규식입니다. 더 단순하게 작성해 주세요."
+  },
+  "errRuleEmpty": {
+    "message": "빈 텍스트와 일치하는 정규식입니다. 한 글자 이상 일치해야 합니다."
+  },
+  "errImport": {
+    "message": "설정 파일이 아닙니다."
+  },
+  "needsAccess": {
+    "message": "사이트 접근 권한 필요"
+  },
+  "optGrant": {
+    "message": "접근 허용"
+  },
+  "errAccess": {
+    "message": "브라우저에서 해당 사이트 접근이 허용되지 않아 서비스를 추가하지 않았습니다."
+  },
+  "optVersion": {
+    "message": "버전"
+  },
+  "optLicence": {
+    "message": "오픈 소스, Apache License 2.0"
+  },
+  "popupServices": {
+    "message": "등록된 AI 서비스"
+  },
+  "popupChecks": {
+    "message": "AI 사이트 검사"
+  },
+  "popupChecksBoth": {
+    "message": "메시지 및 파일"
+  },
+  "popupChecksPrompts": {
+    "message": "메시지"
+  },
+  "popupChecksFiles": {
+    "message": "파일"
+  },
+  "popupChecksOff": {
+    "message": "사용 안 함"
+  },
+  "popupRules": {
+    "message": "적용 중인 데이터 규칙"
+  },
+  "popupToday": {
+    "message": "최근 24시간"
+  },
+  "popupTodayCounts": {
+    "message": "차단 $1건, 경고 $2건"
+  },
+  "popupLogOff": {
+    "message": "기록 사용 안 함"
+  }
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="blockedPageTitle">Blocked — KYRA AI Guardrail</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="ui/style.css">
+  <script type="module" src="ui/blocked.js"></script>
+</head>
+<body>
+  <main class="interstitial">
+    <div class="card" role="alert">
+      <div class="brand"><img src="icons/icon48.png" alt=""><span data-i18n="extName">KYRA AI Guardrail</span></div>
+
+      <p class="compact lead"><strong id="compact-text" data-i18n="blockedFramed"></strong></p>
+
+      <div class="full">
+        <h1 data-i18n="blockedHeading"></h1>
+        <p class="lead" id="body"></p>
+
+        <dl class="facts">
+          <dt data-i18n="labelService"></dt><dd id="service-name"></dd>
+          <dt data-i18n="labelSite"></dt><dd id="host"></dd>
+          <dt data-i18n="labelCompany"></dt><dd id="company"></dd>
+        </dl>
+
+        <p data-i18n="blockedHelp"></p>
+
+        <div class="actions">
+          <button type="button" class="primary" id="back" data-i18n="goBack"></button>
+        </div>
+
+        <p class="footer" data-i18n="managedNotice"></p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

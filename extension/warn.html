@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="warnPageTitle">Not approved — KYRA AI Guardrail</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="ui/style.css">
+  <script type="module" src="ui/warn.js"></script>
+</head>
+<body>
+  <main class="interstitial">
+    <form class="card" id="form" novalidate>
+      <div class="brand"><img src="icons/icon48.png" alt=""><span data-i18n="extName">KYRA AI Guardrail</span></div>
+
+      <h1 data-i18n="warnHeading"></h1>
+      <p class="lead" id="body"></p>
+
+      <dl class="facts">
+        <dt data-i18n="labelService"></dt><dd id="service-name"></dd>
+        <dt data-i18n="labelSite"></dt><dd id="host"></dd>
+        <dt data-i18n="labelCompany"></dt><dd id="company"></dd>
+      </dl>
+
+      <label class="field" for="reason" data-i18n="warnReasonLabel"></label>
+      <textarea id="reason" name="reason" maxlength="500" required data-i18n-placeholder="warnReasonPlaceholder"></textarea>
+      <div class="counter" id="counter" aria-live="polite"></div>
+
+      <p class="notice" id="notice"></p>
+      <p class="error" id="error" role="alert" hidden></p>
+
+      <div class="actions">
+        <button type="button" id="back" data-i18n="goBack"></button>
+        <button type="submit" class="primary" id="continue" data-i18n="warnContinue" disabled></button>
+      </div>
+
+      <p class="footer" data-i18n="managedNotice"></p>
+    </form>
+  </main>
+</body>
+</html>
