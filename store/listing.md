@@ -19,7 +19,7 @@ Regenerate the images with `python scripts/store_screenshots.py`.
 - **Category:** Privacy & Security (if not offered: Workflow & Planning under Productivity)
 - **Language:** English (default), Korean
 - **Homepage URL:** https://seekerslab.com
-- **Support URL:** https://github.com/fankh/kyra-guardrail-free/issues (e-mail: contact@seekerslab.com)
+- **Support URL:** https://github.com/fankh/kyra-guard/issues (e-mail: contact@seekerslab.com)
 
 ### English
 
@@ -57,7 +57,7 @@ What it does not do
 - It does not read text inside images or PDF files.
 - It covers this browser only, not desktop apps or other browsers.
 
-Open source under the Apache License 2.0: https://github.com/fankh/kyra-guardrail-free
+Open source under the Apache License 2.0: https://github.com/fankh/kyra-guard
 
 ### Korean (한국어)
 
@@ -95,7 +95,7 @@ KYRA AI Guardrail Free는 민감한 데이터가 AI 서비스로 전송되지 �
 - 이미지와 PDF 파일 안의 텍스트는 검사 대상이 아니므로 해당 파일의 처리 방식(허용, 경고, 차단)을 설정에서 지정 필요
 - 적용 범위는 해당 브라우저이므로 데스크톱 앱과 다른 브라우저는 별도 대책 필요
 
-Apache License 2.0 오픈 소스: https://github.com/fankh/kyra-guardrail-free
+Apache License 2.0 오픈 소스: https://github.com/fankh/kyra-guard
 
 ## Privacy practices tab
 
@@ -126,7 +126,7 @@ Certify all three statements:
 - Data is not used or transferred for purposes unrelated to the single purpose of the item.
 - Data is not used or transferred to determine creditworthiness or for lending purposes.
 
-**Privacy policy URL:** https://github.com/fankh/kyra-guardrail-free/blob/main/PRIVACY.md (the same text as `store/privacy-policy.md`)
+**Privacy policy URL:** https://github.com/fankh/kyra-guard/blob/main/PRIVACY.md (the same text as `store/privacy-policy.md`)
 
 ## Distribution tab
 
