@@ -2,14 +2,42 @@
 
 import { buildDomainIndex, findService } from '../lib/matching.js';
 
+// The language chosen in the settings, where the edition offers that choice: the worker then
+// keeps its code under `uiLanguage`. Without it the pages follow the browser's language.
+const chosen = await (async () => {
+  try {
+    const code = (await chrome.storage.local.get('uiLanguage')).uiLanguage;
+    if (typeof code !== 'string' || !/^[a-z]{2}(_[A-Z]{2})?$/.test(code)) return null;
+    const packaged = await fetch(chrome.runtime.getURL(`_locales/${code}/messages.json`));
+    return { code: code.replace('_', '-'), messages: await packaged.json() };
+  } catch {
+    return null;
+  }
+})();
+
+/** The language the pages are shown in, as a BCP 47 code. */
+export function language() {
+  return chosen?.code ?? chrome.i18n.getUILanguage();
+}
+
+/** Fills $1..$9 and named placeholders the way the browser does for its own language. */
+function fill(entry, substitutions) {
+  const values = substitutions === undefined ? [] : [substitutions].flat().map(String);
+  const numbered = (text) => text.replace(/\$([1-9])/g, (_, n) => values[n - 1] ?? '');
+  const names = Object.fromEntries(Object.entries(entry.placeholders ?? {}).map(([name, p]) => [name.toLowerCase(), p.content ?? '']));
+  return numbered(String(entry.message ?? '').replace(/\$([A-Za-z0-9_@]+)\$/g, (whole, name) => numbered(names[name.toLowerCase()] ?? whole)));
+}
+
 /** Localised string; falls back to the key so a missing message is visible, not blank. */
 export function t(key, substitutions) {
+  const entry = chosen?.messages[key];
+  if (entry) return fill(entry, substitutions);
   return chrome.i18n.getMessage(key, substitutions) || key;
 }
 
 /** Fills elements marked with data-i18n, data-i18n-placeholder and data-i18n-aria-label. */
 export function localize(root = document) {
-  document.documentElement.lang = chrome.i18n.getUILanguage();
+  document.documentElement.lang = language();
   for (const el of root.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
   for (const el of root.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(el.dataset.i18nPlaceholder);
   for (const el of root.querySelectorAll('[data-i18n-aria-label]')) el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
@@ -62,7 +90,7 @@ export async function goBack() {
 }
 
 export function formatTime(epochMs) {
-  return new Intl.DateTimeFormat(chrome.i18n.getUILanguage(), {
+  return new Intl.DateTimeFormat(language(), {
     dateStyle: 'medium', timeStyle: 'short',
   }).format(new Date(epochMs));
 }

@@ -30,7 +30,7 @@ Checks what you send to AI chats for personal data and keys, in your browser. Wa
 
 **Description:**
 
-KYRA AI Guardrail Free keeps sensitive data out of AI services. Before a message or a file goes to an AI chat, it is checked in your browser against data rules you control. Nothing you type is sent to us or to anyone else: the extension has no server and makes no network request of its own.
+KYRA AI Guardrail Free keeps sensitive data out of AI services. Before a message or a file goes to an AI chat, it is checked in your browser against data rules you control. Nothing you type is sent to us or to anyone else. Out of the box the extension makes no network request at all.
 
 What it does
 - Checks the messages you send on AI sites such as ChatGPT, Claude, Gemini, Copilot and DeepSeek (51 services are known out of the box; add your own).
@@ -52,6 +52,8 @@ Private by design
 
 For teams
 - Save the settings to a file and share them, or let an administrator push them through browser policy.
+- An organization can run the small open-source management server itself; connected browsers download their settings from it and send it nothing.
+- Shown in the browser's language, or in English or Korean if you choose.
 
 What it does not do
 - It does not read text inside images or PDF files.
@@ -90,6 +92,8 @@ KYRA AI Guardrail Free는 민감한 데이터가 AI 서비스로 전송되지 �
 
 팀 사용
 - 설정을 파일로 저장하여 공유, 또는 관리자가 브라우저 정책으로 배포
+- 조직이 오픈 소스 관리 서버를 직접 운영하는 경우 연결된 브라우저가 설정을 내려받으며 서버로 전송하는 정보 없음
+- 표시 언어: 브라우저 언어 또는 설정에서 선택한 영어·한국어
 
 추가적으로 확인해야 되는 부분
 - 이미지와 PDF 파일 안의 텍스트는 검사 대상이 아니므로 해당 파일의 처리 방식(허용, 경고, 차단)을 설정에서 지정 필요
@@ -113,13 +117,18 @@ Protect the user from sending sensitive data to AI services: it checks, in the b
 | `storage` | Stores the settings and the activity log in the browser, and reads settings pushed by an administrator through managed storage. |
 | `alarms` | Ends the one-hour "continue" allowance after the user proceeds past a warning. |
 
-**Remote code:** No, the extension does not use remote code. All code is in the package.
+**Remote code:** No, the extension does not use remote code. All code is in the package. When
+an organization connects it to its own management server, it downloads a settings document
+(JSON data: which services to warn about or block, which data rules apply). The document is
+validated and never executed.
 
 **Data usage (what the extension collects):** none of the listed categories is collected or transmitted.
 The extension processes the text the user is about to send to an AI site, in the browser, to
 check it against the rules; the text is not stored and not transmitted. The activity log
 (site name, rule name, file name, the reason the user typed on a warning page) stays in
 `chrome.storage.local` on the device.
+The optional management server belongs to the user's organization, not to the publisher; the
+extension sends it a GET request with the enrollment key and no user data.
 
 Certify all three statements:
 - Data is not sold or transferred to third parties, outside the approved use cases.

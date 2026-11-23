@@ -4,14 +4,16 @@
 
 import { LOG_KEY, toCsv } from '../lib/reporter.js';
 import { BUILTIN_RULES, activeRules, compileCustomRule, maskText, scanText } from '../lib/rules.js';
+import { normalizeServerUrl } from '../lib/remote.js';
 import {
-  SETTINGS_KEY, defaultSettings, effectiveServices, loadSettings, normalizeSettings, originsFor,
+  SERVER_CACHE_KEY, SERVER_KEY, SERVER_STATUS_KEY, SETTINGS_KEY, defaultSettings, effectiveServices, loadSettings,
+  normalizeSettings, originsFor, serverConfig,
 } from '../lib/settings.js';
-import { formatTime, localize, setText, t } from './common.js';
+import { ask, formatTime, language, localize, setText, t } from './common.js';
 
 localize();
 
-const korean = chrome.i18n.getUILanguage().toLowerCase().startsWith('ko');
+const korean = language().toLowerCase().startsWith('ko');
 const ruleName = (rule) => (korean ? rule.nameKo || rule.name : rule.name);
 // The log keeps rule names as recorded (English for the built-in rules, so the saved CSV
 // reads the same everywhere); a Korean browser shows the built-in ones in Korean.
@@ -21,7 +23,10 @@ const logRuleName = (name) => (korean && LOG_RULE_NAMES.get(name)) || name;
 const $ = (id) => document.getElementById(id);
 
 let settings = defaultSettings();
+// True when the settings come from browser policy or a management server: the page only shows them.
 let managed = false;
+let source = 'default';
+let server = null;
 
 function el(tag, props = {}, children = []) {
   const node = Object.assign(document.createElement(tag), props);
@@ -108,17 +113,29 @@ async function renderServices() {
 
 $('service-filter').addEventListener('input', renderServices);
 
-$('service-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const candidate = { name: $('service-name').value, domains: $('service-domains').value, action: $('service-action').value };
+/** Adds an own service. Must run straight from a click, because the browser may ask for access. */
+async function addService(candidate) {
   const before = settings.customServices.length;
   const next = normalizeSettings({ ...settings, customServices: [...settings.customServices, candidate] });
-  if (next.customServices.length === before) return showError(t('errService'));
+  if (next.customServices.length === before) {
+    showError(t('errService'));
+    return false;
+  }
   // The browser asks the person here; nothing before this line waits, so the click still counts.
-  if (!(await askAccess(next.customServices[before]))) return showError(t('errAccess'));
+  if (!(await askAccess(next.customServices[before]))) {
+    showError(t('errAccess'));
+    return false;
+  }
+  await save(next);
+  return true;
+}
+
+$('service-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const added = await addService({ name: $('service-name').value, domains: $('service-domains').value, action: $('service-action').value });
+  if (!added) return;
   $('service-name').value = '';
   $('service-domains').value = '';
-  await save(next);
 });
 
 // ---------------------------------------------------------------- rules
@@ -237,6 +254,51 @@ $('log-clear').addEventListener('click', async () => {
   await renderLog();
 });
 
+// ---------------------------------------------------------------- the management server
+
+async function renderServer(note = '') {
+  const status = (await chrome.storage.local.get(SERVER_STATUS_KEY))[SERVER_STATUS_KEY];
+  $('server-url').value = server?.url ?? $('server-url').value;
+  $('server-url').disabled = Boolean(server);
+  $('server-key').hidden = Boolean(server);
+  $('server-connect').hidden = Boolean(server);
+  $('server-sync').hidden = !server;
+  $('server-disconnect').hidden = !server || server.managed;
+  let text = note;
+  if (!text && server && status?.url === server.url) {
+    text = status.ok ? t('serverStatusOk', [status.version ?? '', formatTime(status.at)])
+      : `${t(`serverErr_${status.error}`)}${source === 'server' ? ` ${t('serverStatusHeld')}` : ''}`;
+  }
+  if (server?.managed) text = `${text} ${t('serverStatusPolicy')}`.trim();
+  setText('server-status', text);
+}
+
+$('server-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const url = normalizeServerUrl($('server-url').value);
+  if (!url) return renderServer(t('serverErr_address'));
+  await chrome.storage.local.set({ [SERVER_KEY]: { url, key: $('server-key').value.trim() } });
+  $('server-key').value = '';
+  server = await serverConfig(chrome.storage);
+  await renderServer(t('serverStatusConnecting'));
+  await ask({ type: 'syncServer' });
+  await load();
+});
+
+$('server-sync').addEventListener('click', async () => {
+  await renderServer(t('serverStatusConnecting'));
+  await ask({ type: 'syncServer' });
+  await load();
+});
+
+$('server-disconnect').addEventListener('click', async () => {
+  if (!confirm(t('confirmDisconnect'))) return;
+  await chrome.storage.local.remove(SERVER_KEY);
+  $('server-url').value = '';
+  await ask({ type: 'syncServer' });
+  await load();
+});
+
 // ---------------------------------------------------------------- backup
 
 $('settings-export').addEventListener('click', () => {
@@ -272,6 +334,7 @@ $('settings-reset').addEventListener('click', async () => {
 
 const bind = (id, event, change) => $(id).addEventListener(event, () => save(change($(id))));
 bind('organisation', 'change', (node) => ({ ...settings, organisation: node.value }));
+bind('language', 'change', (node) => ({ ...settings, language: node.value }));
 bind('defaultAction', 'change', (node) => ({ ...settings, defaultAction: node.value }));
 bind('check-prompts', 'change', (node) => ({ ...settings, inspection: { ...settings.inspection, prompts: node.checked } }));
 bind('check-files', 'change', (node) => ({ ...settings, inspection: { ...settings.inspection, files: node.checked } }));
@@ -280,30 +343,38 @@ bind('log-enabled', 'change', (node) => ({ ...settings, log: node.checked }));
 
 function render() {
   $('managed-banner').hidden = !managed;
+  setText('managed-banner', t(source === 'server' ? 'optionsServerManaged' : 'optionsManaged'));
+  setText('local-notice', server ? t('serverNotice', [server.url]) : t('localNotice'));
   $('organisation').value = settings.organisation;
+  $('language').value = settings.language;
   $('defaultAction').value = settings.defaultAction;
   $('check-prompts').checked = settings.inspection.prompts;
   $('check-files').checked = settings.inspection.files;
   $('unscannable').value = settings.inspection.unscannableFiles;
   $('log-enabled').checked = settings.log;
-  for (const id of ['organisation', 'defaultAction', 'check-prompts', 'check-files', 'unscannable', 'log-enabled',
+  for (const id of ['organisation', 'language', 'defaultAction', 'check-prompts', 'check-files', 'unscannable', 'log-enabled',
     'settings-import', 'settings-reset']) $(id).disabled = managed;
   for (const id of ['service-form', 'rule-form']) $(id).hidden = managed;
   renderServices();
   renderRules();
   renderTry();
+  renderServer();
 }
 
 async function load() {
   const loaded = await loadSettings(chrome.storage);
-  managed = loaded.source === 'managed';
+  source = loaded.source;
+  managed = source === 'managed' || source === 'server';
+  server = await serverConfig(chrome.storage);
   settings = loaded.settings;
   render();
   await renderLog();
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'managed') load();
+  // The worker changed the language of the pages: draw this one again in it.
+  if (area === 'local' && 'uiLanguage' in changes) location.reload();
+  else if (area === 'managed' || (area === 'local' && (SERVER_CACHE_KEY in changes || SERVER_STATUS_KEY in changes))) load();
   else if (area === 'local' && LOG_KEY in changes) renderLog();
 });
 

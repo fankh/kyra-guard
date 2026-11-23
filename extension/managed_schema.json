@@ -5,6 +5,16 @@
       "title": "Settings (JSON)",
       "description": "The whole settings document as JSON text, in the format the options page saves with 'Save settings to a file'. When set, these settings are used as a whole and cannot be changed in the browser.",
       "type": "string"
+    },
+    "serverUrl": {
+      "title": "Management server address",
+      "description": "Address of the organisation's own KYRA AI Guardrail Free management server, for example https://guardrail.example.com/. The extension downloads its settings from there. Ignored when settingsJson is set.",
+      "type": "string"
+    },
+    "serverKey": {
+      "title": "Enrolment key",
+      "description": "The enrolment key shown on the management server's admin page.",
+      "type": "string"
     }
   }
 }

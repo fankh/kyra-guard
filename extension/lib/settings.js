@@ -1,18 +1,27 @@
 // The settings, all of them kept in this browser. Where they come from:
 //  - an administrator may push them through browser policy (chrome.storage.managed,
 //    `settingsJson`), and then they cannot be changed here;
+//  - an organisation may run a small management server (see lib/remote.js); the settings
+//    downloaded from it are then used as a whole, the same way;
 //  - otherwise the options page stores them in chrome.storage.local.
-// There is no server. Pure functions apart from loadSettings; unit-tested in Node.
+// Pure functions apart from serverConfig and loadSettings; unit-tested in Node.
 
 import { CATALOG } from './catalog.js';
 import { normalizeDomain } from './matching.js';
 import { ACTIONS } from './policy.js';
+import { normalizeServerUrl } from './remote.js';
 import { BUILTIN_RULES, MAX_CUSTOM_RULES, RULE_ACTIONS, compileCustomRule } from './rules.js';
 
 export const SETTINGS_KEY = 'settings';
 export const SETTINGS_FORMAT = 1;
 export const UNSCANNABLE = Object.freeze(['allow', 'warn', 'block']);
 export const MAX_CUSTOM_SERVICES = 200;
+// 'auto' follows the browser; the others are the languages in _locales/.
+export const LANGUAGES = Object.freeze(['auto', 'en', 'ko']);
+// chrome.storage.local
+export const SERVER_KEY = 'server'; // { url, key }: the management server typed in the settings page
+export const SERVER_CACHE_KEY = 'serverSettings'; // { url, version, fetchedAt, settings }: the last download
+export const SERVER_STATUS_KEY = 'serverStatus'; // { url, at, ok, error, version }: how the last download went
 const MAX_DOMAINS_PER_SERVICE = 30;
 
 /** What a new install does: every known AI service opens, and what is sent to it is checked. */
@@ -20,6 +29,7 @@ export function defaultSettings() {
   return {
     format: SETTINGS_FORMAT,
     organisation: '',
+    language: 'auto',
     defaultAction: 'allow',
     services: {},
     customServices: [],
@@ -78,6 +88,7 @@ export function normalizeSettings(raw, options) {
   return {
     format: SETTINGS_FORMAT,
     organisation: typeof raw.organisation === 'string' ? raw.organisation.trim().slice(0, 80) : '',
+    language: LANGUAGES.includes(raw.language) ? raw.language : base.language,
     defaultAction: ACTIONS.includes(raw.defaultAction) ? raw.defaultAction : base.defaultAction,
     services,
     customServices,
@@ -148,10 +159,30 @@ export function parseManaged(managed) {
 }
 
 /**
- * The settings to use and where they came from. Pushed settings win as a whole, so a
- * person cannot change part of a managed setup.
+ * The management server to download settings from, or null. An address pushed through
+ * browser policy wins over one typed in the settings page, and cannot be changed there.
  *
- * @returns {Promise<{source: 'managed'|'local'|'default', settings: object}>}
+ * @returns {Promise<{url: string, key: string, managed: boolean}|null>}
+ */
+export async function serverConfig(storage) {
+  try {
+    const pushed = await storage.managed.get(['serverUrl', 'serverKey']);
+    const url = normalizeServerUrl(pushed?.serverUrl);
+    if (url) return { url, key: typeof pushed.serverKey === 'string' ? pushed.serverKey.trim() : '', managed: true };
+  } catch {
+    // No managed storage on this platform.
+  }
+  const typed = (await storage.local.get(SERVER_KEY))[SERVER_KEY];
+  const url = normalizeServerUrl(typed?.url);
+  return url ? { url, key: typeof typed.key === 'string' ? typed.key.trim() : '', managed: false } : null;
+}
+
+/**
+ * The settings to use and where they came from. Pushed or downloaded settings win as a
+ * whole, so a person cannot change part of a managed setup. Until the first download from
+ * a management server succeeds, the settings of this browser stay in force.
+ *
+ * @returns {Promise<{source: 'managed'|'server'|'local'|'default', settings: object}>}
  */
 export async function loadSettings(storage, options) {
   let managed = null;
@@ -161,6 +192,11 @@ export async function loadSettings(storage, options) {
     // No managed storage on this platform: use the local settings.
   }
   if (managed) return { source: 'managed', settings: normalizeSettings(managed, options) };
+  const server = await serverConfig(storage);
+  if (server) {
+    const cached = (await storage.local.get(SERVER_CACHE_KEY))[SERVER_CACHE_KEY];
+    if (cached?.url === server.url && cached.settings) return { source: 'server', settings: normalizeSettings(cached.settings, options) };
+  }
   const local = (await storage.local.get(SETTINGS_KEY))[SETTINGS_KEY];
   return local ? { source: 'local', settings: normalizeSettings(local, options) }
     : { source: 'default', settings: defaultSettings() };

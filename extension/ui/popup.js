@@ -19,7 +19,10 @@ function render(snapshot) {
   const stopped = (today.blocked ?? 0) + (today.prompt_blocked ?? 0) + (today.file_blocked ?? 0);
   const warned = (today.warned ?? 0) + (today.prompt_warned ?? 0) + (today.file_warned ?? 0);
   setText('today', snapshot.logging ? t('popupTodayCounts', [String(stopped), String(warned)]) : t('popupLogOff'));
-  document.getElementById('managed-note').hidden = snapshot.source !== 'managed';
+  const note = document.getElementById('managed-note');
+  note.hidden = snapshot.source !== 'managed' && snapshot.source !== 'server';
+  if (snapshot.source === 'server') note.textContent = t('optionsServerManaged');
+  if (snapshot.server) setText('local-notice', t('serverNotice', [snapshot.server]));
 }
 
 document.getElementById('settings').addEventListener('click', () => chrome.runtime.openOptionsPage());

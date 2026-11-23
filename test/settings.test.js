@@ -141,6 +141,7 @@ describe('the package', () => {
   it('asks for no account or network permission beyond what it needs', () => {
     const manifest = JSON.parse(read('../extension/manifest.json'));
     assert.deepEqual(manifest.permissions, ['declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'scripting', 'storage', 'alarms']);
+    assert.equal('optional_permissions' in manifest, false);
     assert.equal('key' in manifest, false);
   });
 
@@ -153,12 +154,20 @@ describe('the package', () => {
     assert.deepEqual(originsFor({ domains: ['llm.corp.example'] }), ['*://*.llm.corp.example/*']);
   });
 
-  it('makes no network request from its own code', () => {
+  it('reaches the network in one place only: the download from a management server', () => {
     const dirs = ['../extension/', '../extension/lib/', '../extension/ui/', '../extension/content/'];
+    const network = /\bfetch\s*\(|XMLHttpRequest|WebSocket\s*\(|sendBeacon|EventSource/;
     for (const dir of dirs) {
       for (const name of readdirSync(new URL(dir, import.meta.url)).filter((n) => n.endsWith('.js'))) {
-        const source = read(dir + name);
-        assert.doesNotMatch(source, /\bfetch\s*\(|XMLHttpRequest|WebSocket\s*\(|sendBeacon|EventSource/, `${dir}${name}`);
+        // Reading a file of the package itself (the texts of a chosen language) is not a network request.
+        const source = read(dir + name).replaceAll('fetch(chrome.runtime.getURL(', 'packaged(');
+        if (dir + name === '../extension/lib/remote.js') {
+          assert.equal(source.match(/\bfetchImpl\(/g).length, 1, 'one request, in fetchServerSettings');
+          assert.match(source, /method: 'GET'/);
+          assert.doesNotMatch(source, /\bbody\s*:/, 'the request sends no body');
+        } else {
+          assert.doesNotMatch(source, network, `${dir}${name}`);
+        }
       }
     }
   });

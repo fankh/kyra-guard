@@ -1,0 +1,29 @@
+/* Admin page of the management server. */
+
+:root {
+  --page: #f4f6fa; --surface: #fff; --text: #16202e; --muted: #5b6676; --border: #d7dce5;
+  --navy: #14285a; --danger: #b42318; --focus: #2f6fed;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --page: #10151d; --surface: #19212c; --text: #e7ebf2; --muted: #9aa6b8; --border: #2e3948; --navy: #8fb0ff; --danger: #ff8a7a; }
+}
+body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.5 system-ui, "Malgun Gothic", sans-serif; }
+main { max-width: 820px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.3rem; margin: 0 0 8px; }
+h2 { font-size: 1.05rem; margin: 0 0 8px; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-top: 16px; }
+.help { color: var(--muted); margin: 6px 0; }
+.error { color: var(--danger); font-weight: 600; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+input, textarea, button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+input[type="password"] { flex: 1 1 260px; }
+input[type="number"] { width: 90px; }
+textarea { width: 100%; box-sizing: border-box; font: 0.85rem ui-monospace, Consolas, monospace; }
+button { cursor: pointer; }
+button.primary { background: #14285a; border-color: #14285a; color: #fff; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 8px 0; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+code { font: 0.9rem ui-monospace, Consolas, monospace; }
+label.inline { display: flex; gap: 8px; align-items: center; color: var(--muted); }

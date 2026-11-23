@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -23,6 +26,7 @@ import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
 
@@ -80,6 +84,28 @@ def wait_until(predicate, timeout: float = 10, message: str = "condition"):
             return value
         time.sleep(0.1)
     raise AssertionError(f"timed out waiting for {message}")
+
+
+class ManagementServer:
+    """The real server from server/, on a free port with its own data folder."""
+
+    def __init__(self, data_dir: Path) -> None:
+        env = {**os.environ, "PORT": "0", "HOST": "127.0.0.1", "KYRA_DATA_DIR": str(data_dir)}
+        self.process = subprocess.Popen(["node", str(EXTENSION_DIR.parent / "server" / "server.js")], env=env,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+        self.url = re.search(r"http://\S+", self.process.stdout.readline()).group(0)
+        self.process.stdout.readline()  # the data folder
+        self.admin_key = self.process.stdout.readline().rsplit(" ", 1)[1].strip()
+
+    def admin(self, method: str, path: str, body: dict | None = None) -> dict:
+        request = Request(self.url + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                          headers={"Authorization": f"Bearer {self.admin_key}", "Content-Type": "application/json"})
+        with urlopen(request, timeout=10) as response:  # noqa: S310 - a local test server
+            return json.loads(response.read())
+
+    def stop(self) -> None:
+        self.process.terminate()
+        self.process.wait(timeout=10)
 
 
 def docx(text: str) -> bytes:
@@ -309,6 +335,103 @@ def main() -> int:
                               if urlparse(u).scheme in ("http", "https") and not (urlparse(u).hostname or "").endswith(".test")})
             check(outside == [], f"every web request went to the test page only ({len(requests)} requests seen)")
             check(POSTS == [], "nothing was posted to the web server")
+
+            print("10. the language: chosen in the settings instead of the browser's")
+            options.bring_to_front()
+            options.select_option("#language", "en")
+            wait_until(lambda: options.locator("h2", has_text="AI services").count() == 1, message="the page in English")
+            check(options.locator("#log thead").inner_text().startswith("Time"), "the settings page is shown in the chosen language")
+            wait_until(lambda: "Payment card number" in options.locator("#log tbody").inner_text(), message="rule names in English")
+            in_page = lambda key: sw.evaluate(  # noqa: E731 - what the page script on the AI site would show
+                """async (key) => { const [tab] = await chrome.tabs.query({url: '*://chat.allow-ai.test/*'});
+                const [r] = await chrome.scripting.executeScript({target: {tabId: tab.id}, func: (k) => chrome.i18n.getMessage(k), args: [key]});
+                return r.result; }""", key)
+            page.reload()
+            wait_until(lambda: in_page("promptCategoryFinancial") == "Financial information", message="page script texts in English")
+            check(True, "the notices on AI sites follow the choice")
+            popup = context.new_page()
+            popup.goto(f"{origin}/popup.html")
+            wait_until(lambda: "AI services known" in popup.inner_text("body"), message="popup in English")
+            popup.close()
+            blocked = context.new_page()
+            blocked.goto(f"http://www.block-ai.test:{port}/")
+            blocked.wait_for_url(f"{origin}/blocked.html*")
+            wait_until(lambda: "is blocked" in blocked.inner_text("body"), message="blocked page in English")
+            check(True, "the popup and the blocked page too")
+            blocked.close()
+            options.bring_to_front()
+            options.select_option("#language", "auto")
+            wait_until(lambda: options.locator("h2", has_text="AI 서비스").count() >= 1, message="back to the browser's language")
+            check(True, "and back to the browser's language")
+
+            print("11. a management server: settings downloaded from it, nothing sent to it")
+            managed = ManagementServer(files / "server-data")
+            try:
+                state = managed.admin("PUT", "api/admin/settings", {"refreshMinutes": 5, "settings": {
+                    "organisation": "Server Corp", "services": {"deepseek": "block"},
+                    "customServices": [{"name": "Server Blocked", "domains": ["srv-blocked.test"], "action": "block"}]}})
+                options.fill("#server-url", managed.url)
+                options.fill("#server-key", "not the key")
+                options.click("#server-connect")
+                wait_until(lambda: "등록 키" in options.inner_text("#server-status"), message="wrong key refused")
+                check(not options.locator("#managed-banner").is_visible() and options.locator("#organisation").is_enabled(),
+                      "a wrong enrolment key changes nothing")
+                options.once("dialog", lambda d: d.accept())
+                options.click("#server-disconnect")
+                wait_until(lambda: options.locator("#server-connect").is_visible(), message="disconnected after the wrong key")
+                options.fill("#server-url", managed.url)
+                options.fill("#server-key", state["enrollmentKey"])
+                options.click("#server-connect")
+                wait_until(lambda: options.locator("#managed-banner").is_visible(), message="settings from the server")
+                check(options.input_value("#organisation") == "Server Corp" and options.locator("#organisation").is_disabled()
+                      and options.locator("#language").is_disabled() and not options.locator("#service-form").is_visible(),
+                      "the server's settings are in force and cannot be changed in the browser")
+                check(state["version"] in options.inner_text("#server-status") and managed.url in options.inner_text("#local-notice"),
+                      "the page says where the settings come from")
+                check(options.locator("#services tbody tr", has_text="allow-ai.test").count() == 0, "this browser's own services are set aside")
+                blocked = context.new_page()
+                blocked.goto(f"http://www.srv-blocked.test:{port}/")
+                blocked.wait_for_url(f"{origin}/blocked.html*")
+                check("Server Corp" in blocked.inner_text("body"), "a service blocked on the server is blocked here")
+                blocked.close()
+                options.locator("#server").scroll_into_view_if_needed()
+                shot(options, "free-server.png")
+
+                admin = context.new_page()
+                admin.goto(managed.url)
+                admin.fill("#admin-key", managed.admin_key)
+                admin.click("#sign-in-form button")
+                admin.wait_for_selector("#console:not([hidden])")
+                check("Server Corp" in admin.inner_text("#summary") and state["enrollmentKey"] in admin.inner_text("#enrollment-key"),
+                      "the admin page shows the settings in force and how to connect")
+                document = json.loads(admin.input_value("#document"))
+                document["organisation"] = "Server Corp 2"
+                document["customRules"] = [{"name": "Slow", "type": "regex", "pattern": "(a+)+$", "action": "block"}]
+                admin.fill("#document", json.dumps(document))
+                admin.click("#save")
+                wait_until(lambda: "제외" in admin.inner_text("#message"), message="saved with a note")
+                check("Server Corp 2" in admin.inner_text("#summary"), "the admin page saves a changed document and says what it left out")
+                shot(admin, "free-server-admin.png")
+                admin.close()
+
+                options.bring_to_front()
+                options.click("#server-sync")
+                wait_until(lambda: options.input_value("#organisation") == "Server Corp 2", message="the change downloaded")
+                check(True, "a change on the server reaches the browser at the next download")
+                managed.stop()
+                options.click("#server-sync")
+                wait_until(lambda: "연결할 수 없" in options.inner_text("#server-status"), message="server down")
+                check(options.input_value("#organisation") == "Server Corp 2" and options.locator("#managed-banner").is_visible(),
+                      "when the server cannot be reached, the settings held stay in force")
+                options.once("dialog", lambda d: d.accept())
+                options.click("#server-disconnect")
+                wait_until(lambda: not options.locator("#managed-banner").is_visible(), message="disconnected")
+                check(options.locator("#services tbody tr", has_text="allow-ai.test").count() == 1 and options.locator("#organisation").is_enabled(),
+                      "after disconnecting, this browser's own settings are back")
+                stored = sw.evaluate("chrome.storage.local.get(null).then(all => Object.keys(all))")
+                check("serverSettings" not in stored and "server" not in stored, "and nothing of the server is kept")
+            finally:
+                managed.stop()
         finally:
             context.close()
             server.shutdown()
@@ -319,7 +442,7 @@ def main() -> int:
 
 def check_ungranted() -> None:
     """The extension as shipped: an own service on a site the browser has no access to."""
-    print("10. as shipped: a site without access waits, and does not disturb the rest")
+    print("12. as shipped: a site without access waits, and does not disturb the rest")
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()

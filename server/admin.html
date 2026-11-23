@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KYRA AI Guardrail Free: management server</title>
+  <link rel="stylesheet" href="admin.css">
+  <script type="module" src="admin.js"></script>
+</head>
+<body>
+  <main>
+    <h1 data-t="title"></h1>
+    <p class="help" data-t="intro"></p>
+    <p class="error" id="error" role="alert" hidden></p>
+
+    <section id="sign-in">
+      <h2 data-t="signIn"></h2>
+      <form id="sign-in-form" class="row">
+        <input type="password" id="admin-key" autocomplete="off" spellcheck="false" data-t-placeholder="adminKey" data-t-label="adminKey">
+        <button type="submit" class="primary" data-t="open"></button>
+      </form>
+      <p class="help" data-t="signInHelp"></p>
+    </section>
+
+    <div id="console" hidden>
+      <section>
+        <h2 data-t="inForce"></h2>
+        <dl id="summary"></dl>
+      </section>
+
+      <section>
+        <h2 data-t="connect"></h2>
+        <p class="help" data-t="connectHelp"></p>
+        <dl>
+          <dt data-t="serverAddress"></dt><dd><code id="address"></code></dd>
+          <dt data-t="enrollmentKey"></dt><dd><code id="enrollment-key"></code></dd>
+        </dl>
+        <button type="button" id="rotate" data-t="rotate"></button>
+      </section>
+
+      <section>
+        <h2 data-t="change"></h2>
+        <p class="help" data-t="changeHelp"></p>
+        <div class="row">
+          <button type="button" id="pick" data-t="pick"></button>
+          <input type="file" id="file" accept="application/json,.json" hidden>
+          <label class="inline"><span data-t="refresh"></span>
+            <input type="number" id="refresh" min="5" max="1440" step="1">
+          </label>
+        </div>
+        <textarea id="document" rows="16" spellcheck="false" data-t-label="change"></textarea>
+        <div class="row">
+          <button type="button" id="save" class="primary" data-t="save"></button>
+          <button type="button" id="sign-out" data-t="signOut"></button>
+        </div>
+        <p class="help" id="message" aria-live="polite"></p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

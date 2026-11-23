@@ -495,5 +495,71 @@
   },
   "popupLogOff": {
     "message": "Log is off"
+  },
+  "optLanguage": {
+    "message": "Language"
+  },
+  "langAuto": {
+    "message": "Browser language"
+  },
+  "secServer": {
+    "message": "Management server (optional)"
+  },
+  "secServerHelp": {
+    "message": "An organization can run its own small management server and have every browser download the same settings from it. While connected, the settings come from the server and cannot be changed here. The extension only downloads settings: nothing about you or what you send goes to the server, and the activity log stays in this browser."
+  },
+  "optServerUrl": {
+    "message": "Server address"
+  },
+  "optServerKey": {
+    "message": "Enrollment key"
+  },
+  "optServerConnect": {
+    "message": "Connect"
+  },
+  "optServerSync": {
+    "message": "Download now"
+  },
+  "optServerDisconnect": {
+    "message": "Disconnect"
+  },
+  "confirmDisconnect": {
+    "message": "Disconnect from the management server? This browser's own settings are used again."
+  },
+  "serverStatusConnecting": {
+    "message": "Connecting to the server."
+  },
+  "serverStatusOk": {
+    "message": "Connected. Settings version $1, last checked $2."
+  },
+  "serverStatusHeld": {
+    "message": "The settings downloaded earlier stay in force."
+  },
+  "serverStatusPolicy": {
+    "message": "The server address was set by your administrator."
+  },
+  "serverErr_address": {
+    "message": "That is not a usable server address."
+  },
+  "serverErr_network": {
+    "message": "The server could not be reached."
+  },
+  "serverErr_unauthorized": {
+    "message": "The server did not accept the enrollment key."
+  },
+  "serverErr_notFound": {
+    "message": "No management server answered at that address."
+  },
+  "serverErr_server": {
+    "message": "The server reported an error."
+  },
+  "serverErr_invalid": {
+    "message": "The server's answer could not be read."
+  },
+  "optionsServerManaged": {
+    "message": "These settings come from your organization's management server and cannot be changed here."
+  },
+  "serverNotice": {
+    "message": "The settings are downloaded from your organization's management server ($1). The activity log stays in this browser, and nothing about you or what you send goes to the server."
   }
 }

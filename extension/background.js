@@ -1,6 +1,7 @@
-// Service worker of the free edition. It has no server: the settings kept in this browser
-// are turned into declarativeNetRequest rules, and what is sent to AI sites is checked here
-// with the rules in lib/rules.js. Nothing leaves the browser.
+// Service worker of the free edition. The settings are turned into declarativeNetRequest
+// rules, and what is sent to AI sites is checked here with the rules in lib/rules.js.
+// Nothing leaves the browser. The one network request it can make is downloading the
+// settings from a management server, and only when an organisation set one up (lib/remote.js).
 
 import { buildDomainIndex, findService, normalizeDomain } from './lib/matching.js';
 import { continueUrl } from './lib/pageparams.js';
@@ -8,16 +9,21 @@ import {
   buildDynamicRules, buildSessionRules, countByAction, parsePolicy, policyFingerprint, promptMatchPatterns,
 } from './lib/policy.js';
 import { MAX_REASON_LENGTH, createLog, makeEntry, summarize } from './lib/reporter.js';
+import { DEFAULT_REFRESH_MINUTES, fetchServerSettings } from './lib/remote.js';
 import { activeRules, maskText, scanText } from './lib/rules.js';
-import { SETTINGS_KEY, loadSettings, originsFor, toPolicyJson } from './lib/settings.js';
+import {
+  SERVER_CACHE_KEY, SERVER_KEY, SERVER_STATUS_KEY, SETTINGS_KEY, loadSettings, originsFor, serverConfig, toPolicyJson,
+} from './lib/settings.js';
 
 const MINUTE_MS = 60 * 1000;
 const ALARM_ALLOWS = 'allow-expiry';
+const ALARM_SERVER = 'server-sync';
 const PROCEED_ALLOW_MS = 60 * MINUTE_MS;
 
 // chrome.storage.local
 const POLICY_KEY = 'policy'; // { policy, fetchedAt }: the policy built from the settings
 const APPLIED_KEY = 'appliedRules'; // { fingerprint, stats } of the dynamic rules in force
+const LANGUAGE_KEY = 'uiLanguage'; // the language chosen in the settings; absent when it follows the browser
 // chrome.storage.session (cleared with the browser session, like session rules)
 const ALLOWS_KEY = 'proceedAllows'; // service id -> expiry (epoch ms)
 
@@ -62,7 +68,7 @@ async function applyRules(policy) {
 }
 
 const PROMPT_SCRIPT_ID = 'kyra-prompt-inspection';
-const PROMPT_SCRIPT_FILES = ['content/prompt-core.js', 'content/file-core.js', 'content/prompt.js'];
+const PROMPT_SCRIPT_FILES = ['content/language.js', 'content/prompt-core.js', 'content/file-core.js', 'content/prompt.js'];
 
 /** Registers the page script for the AI sites that are not blocked, or removes it when checks are off. */
 async function syncPromptScript(policy) {
@@ -114,7 +120,12 @@ let applying = Promise.resolve();
 /** Puts the current settings in force. One at a time, so a quick second change is not lost. */
 function apply() {
   const run = applying.then(async () => {
-    const { policy } = await state();
+    const { policy, settings } = await state();
+    // The pages read this; they are drawn again when it changes.
+    const held = (await local.get(LANGUAGE_KEY))[LANGUAGE_KEY];
+    if (settings.language === 'auto') {
+      if (held) await local.remove(LANGUAGE_KEY);
+    } else if (held !== settings.language) await local.set({ [LANGUAGE_KEY]: settings.language });
     await applyRules(policy);
     await local.set({ [POLICY_KEY]: { policy, fetchedAt: Date.now() } });
     await syncSessionRules(policy);
@@ -144,8 +155,57 @@ function record(found, fields, options) {
   return log.add(entry, options).catch((error) => console.error('log', error));
 }
 
-const korean = () => chrome.i18n.getUILanguage().toLowerCase().startsWith('ko');
-const ruleLabel = (rule) => (korean() ? rule.nameKo || rule.name : rule.name);
+const browserLanguage = () => chrome.i18n.getUILanguage().toLowerCase();
+const korean = (settings) => (settings.language === 'auto' ? browserLanguage() : settings.language).startsWith('ko');
+const ruleLabel = (settings) => (rule) => (korean(settings) ? rule.nameKo || rule.name : rule.name);
+
+const packagedTexts = new Map();
+/** The texts of the chosen language for the page script, or null when it follows the browser. */
+async function uiStrings() {
+  const { language } = (await state()).settings;
+  if (language === 'auto') return null;
+  if (!packagedTexts.has(language)) {
+    const packaged = await fetch(chrome.runtime.getURL(`_locales/${language}/messages.json`));
+    packagedTexts.set(language, await packaged.json());
+  }
+  return { language, messages: packagedTexts.get(language) };
+}
+
+// ---------------------------------------------------------------- the management server
+
+let syncing = Promise.resolve();
+/** Downloads the settings from the management server, if there is one. One at a time. */
+function syncServer() {
+  const run = syncing.then(async () => {
+    const server = await serverConfig(chrome.storage);
+    if (!server) {
+      await chrome.alarms.clear(ALARM_SERVER);
+      await local.remove([SERVER_CACHE_KEY, SERVER_STATUS_KEY]);
+      return { ok: true, connected: false };
+    }
+    const cached = (await local.get(SERVER_CACHE_KEY))[SERVER_CACHE_KEY];
+    const held = cached?.url === server.url ? cached : null;
+    const result = await fetchServerSettings({ ...server, version: held?.version });
+    const now = Date.now();
+    let minutes = held?.refreshMinutes ?? DEFAULT_REFRESH_MINUTES;
+    if (result.ok && !result.unchanged) {
+      minutes = result.refreshMinutes;
+      await local.set({ [SERVER_CACHE_KEY]: {
+        url: server.url, version: result.version, refreshMinutes: minutes, fetchedAt: now, settings: result.settings,
+      } });
+    }
+    // A download that failed changes nothing: the settings held from before stay in force.
+    const status = {
+      url: server.url, at: now, ok: result.ok, error: result.ok ? null : result.error,
+      version: result.ok && !result.unchanged ? result.version : held?.version ?? null,
+    };
+    await local.set({ [SERVER_STATUS_KEY]: status });
+    await chrome.alarms.create(ALARM_SERVER, { periodInMinutes: minutes });
+    return { ...status, connected: true };
+  });
+  syncing = run.catch((error) => console.error('management server', error));
+  return run;
+}
 
 // ---------------------------------------------------------------- messages from extension pages
 
@@ -156,6 +216,7 @@ async function snapshot() {
     ok: true,
     version: chrome.runtime.getManifest().version,
     source,
+    server: (await serverConfig(chrome.storage))?.url ?? null,
     pending,
     organisation: settings.organisation,
     counts: countByAction(policy),
@@ -170,6 +231,8 @@ async function snapshot() {
 
 const handlers = {
   status: () => snapshot(),
+
+  syncServer: () => syncServer(),
 
   async blocked({ host }) {
     const found = await serviceForHost(host);
@@ -269,8 +332,8 @@ async function inspect(message, sender) {
   await record(found, { action: `${kind}_${result.action === 'block' ? 'blocked' : 'warned'}`, fileName, rules: ruleNames });
   return {
     action: result.action,
-    findings: result.findings.map((f) => ({ category: f.category, name: korean() ? f.nameKo || f.name : f.name })),
-    maskedContent: !file && result.action === 'warn' ? maskText(content, result.spans, ruleLabel) : null,
+    findings: result.findings.map((f) => ({ category: f.category, name: korean(found.settings) ? f.nameKo || f.name : f.name })),
+    maskedContent: !file && result.action === 'warn' ? maskText(content, result.spans, ruleLabel(found.settings)) : null,
     mustMask: false,
     companyName: organisation,
   };
@@ -285,6 +348,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.error('check', error);
         sendResponse({ action: 'allow' });
       });
+      return true;
+    }
+    if (message?.type === 'uiStrings') {
+      uiStrings().then(sendResponse, () => sendResponse(null));
       return true;
     }
     if (message?.type === 'inspectionSettings') {
@@ -308,13 +375,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   await apply();
+  syncServer();
   if (reason === 'install') chrome.runtime.openOptionsPage();
 });
 
-chrome.runtime.onStartup.addListener(() => { apply(); });
+chrome.runtime.onStartup.addListener(() => {
+  apply();
+  syncServer();
+});
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_ALLOWS) await syncSessionRules((await state()).policy);
+  else if (alarm.name === ALARM_SERVER) await syncServer();
 });
 
 function reload() {
@@ -323,7 +395,9 @@ function reload() {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'managed' || (area === 'local' && SETTINGS_KEY in changes)) reload();
+  if (area === 'managed' || (area === 'local' && (SETTINGS_KEY in changes || SERVER_CACHE_KEY in changes))) reload();
+  // The server was set, changed or removed: download from it, or go back to this browser's settings.
+  if (area === 'managed' || (area === 'local' && SERVER_KEY in changes)) syncServer();
 });
 
 // Access to a site was given or taken away: an own service starts or stops working.

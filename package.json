@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "KYRA AI Guardrail Free: a browser extension (Chrome/Edge, Manifest V3) that warns about or blocks AI services and checks what is sent to them, with every setting kept in the browser. No build step; load extension/ unpacked.",
+  "description": "KYRA AI Guardrail Free: a browser extension (Chrome/Edge, Manifest V3) that warns about or blocks AI services and checks what is sent to them, with every setting kept in the browser, and an optional self-hosted server that hands out settings. No build step; load extension/ unpacked.",
   "type": "module",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "server": "node server/server.js"
   }
 }

@@ -495,5 +495,71 @@
   },
   "popupLogOff": {
     "message": "기록 사용 안 함"
+  },
+  "optLanguage": {
+    "message": "언어"
+  },
+  "langAuto": {
+    "message": "브라우저 언어"
+  },
+  "secServer": {
+    "message": "관리 서버 (선택)"
+  },
+  "secServerHelp": {
+    "message": "조직에서 자체 관리 서버를 운영하여 모든 브라우저가 동일한 설정을 내려받도록 할 수 있습니다. 연결된 동안에는 서버의 설정이 적용되며 여기에서 변경할 수 없습니다. 확장 프로그램은 설정만 내려받습니다. 사용자 정보와 입력 내용은 서버로 전송하지 않으며 활동 기록은 이 브라우저에만 보관합니다."
+  },
+  "optServerUrl": {
+    "message": "서버 주소"
+  },
+  "optServerKey": {
+    "message": "등록 키"
+  },
+  "optServerConnect": {
+    "message": "연결"
+  },
+  "optServerSync": {
+    "message": "지금 내려받기"
+  },
+  "optServerDisconnect": {
+    "message": "연결 해제"
+  },
+  "confirmDisconnect": {
+    "message": "관리 서버 연결을 해제하시겠습니까? 이 브라우저의 자체 설정이 다시 적용됩니다."
+  },
+  "serverStatusConnecting": {
+    "message": "서버에 연결하고 있습니다."
+  },
+  "serverStatusOk": {
+    "message": "연결되었습니다. 설정 버전 $1, 최근 확인 $2."
+  },
+  "serverStatusHeld": {
+    "message": "이전에 내려받은 설정이 계속 적용됩니다."
+  },
+  "serverStatusPolicy": {
+    "message": "서버 주소는 관리자가 지정하였습니다."
+  },
+  "serverErr_address": {
+    "message": "사용할 수 없는 서버 주소입니다."
+  },
+  "serverErr_network": {
+    "message": "서버에 연결할 수 없습니다."
+  },
+  "serverErr_unauthorized": {
+    "message": "서버에서 등록 키가 승인되지 않았습니다."
+  },
+  "serverErr_notFound": {
+    "message": "해당 주소에서 관리 서버가 응답하지 않습니다."
+  },
+  "serverErr_server": {
+    "message": "서버에서 오류가 발생하였습니다."
+  },
+  "serverErr_invalid": {
+    "message": "서버의 응답을 읽을 수 없습니다."
+  },
+  "optionsServerManaged": {
+    "message": "이 설정은 조직의 관리 서버에서 내려받은 것으로 여기에서 변경할 수 없습니다."
+  },
+  "serverNotice": {
+    "message": "설정은 조직의 관리 서버($1)에서 내려받습니다. 활동 기록은 이 브라우저에만 보관하며 사용자 정보와 입력 내용은 서버로 전송하지 않습니다."
   }
 }
