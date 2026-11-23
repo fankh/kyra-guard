@@ -20,6 +20,8 @@ server and still sends it nothing.
   browser downloads the same settings from it.
 - **Language**: follows the browser, or English or Korean chosen in the settings.
 
+**User guide with screenshots:** [English](docs/guide.md) · [한국어](docs/guide.ko.md)
+
 ## Install
 
 There is no build step.
@@ -151,6 +153,7 @@ extension is a separate program; this one does not connect to it.
 npm test                              # unit tests (Node 20 or later, no dependencies)
 npm run server                        # the management server on http://127.0.0.1:8787/
 python test/e2e_playwright.py [dir]   # a real browser; needs Python and Playwright's Chromium
+python scripts/guide_screenshots.py   # remakes the images of the user guide in docs/
 ```
 
 ```
