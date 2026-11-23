@@ -561,5 +561,8 @@
   },
   "serverNotice": {
     "message": "The settings are downloaded from your organization's management server ($1). The activity log stays in this browser, and nothing about you or what you send goes to the server."
+  },
+  "serverWarnHttp": {
+    "message": "This address is not HTTPS: the settings and the enrollment key can be read on the network."
   }
 }

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import {
-  clampRefreshMinutes, fetchServerSettings, normalizeServerUrl,
+  clampRefreshMinutes, fetchServerSettings, isUnprotectedAddress, normalizeServerUrl,
 } from '../extension/lib/remote.js';
 import {
   SERVER_CACHE_KEY, SERVER_KEY, defaultSettings, loadSettings, normalizeSettings, serverConfig,
@@ -85,7 +85,7 @@ describe('the management server', () => {
 
   before(async () => {
     dataDir = mkdtempSync(join(tmpdir(), 'kyra-server-'));
-    app = createManagementServer({ dataDir });
+    app = createManagementServer({ dataDir, wrongKeyDelayMs: 150 });
     adminKey = app.firstAdminKey;
     await new Promise((done) => { app.server.listen(0, '127.0.0.1', done); });
     base = `http://127.0.0.1:${app.server.address().port}/`;
@@ -185,12 +185,31 @@ describe('the management server', () => {
     assert.equal((await fetchServerSettings({ url: base }, answer('{}', 500))).error, 'server');
   });
 
-  it('locks the admin API after repeated wrong keys', async () => {
+  it('slows down repeated wrong admin keys without ever locking out the right one', async () => {
     const attempt = () => fetch(`${base}api/admin/state`, { headers: { Authorization: 'Bearer wrong' } });
+    // Earlier tests already sent a wrong key or two from this address.
     const statuses = [];
-    for (let i = 0; i < 11; i += 1) statuses.push((await attempt()).status);
-    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401));
-    assert.equal(statuses[10], 429);
-    assert.equal((await fetch(`${base}api/admin/state`, { headers: asAdmin() })).status, 429, 'also for the right key, until the wait is over');
+    for (let i = 0; i < 10; i += 1) statuses.push((await attempt()).status);
+    assert.equal(statuses[0], 401);
+    const started = Date.now();
+    assert.equal((await attempt()).status, 429);
+    assert.ok(Date.now() - started >= 140, 'a further wrong key is answered late');
+    const quick = Date.now();
+    assert.equal((await fetch(`${base}api/admin/state`, { headers: asAdmin() })).status, 200, 'the right key still works');
+    assert.ok(Date.now() - quick < 140, 'and is not delayed');
+  });
+
+  it('keeps every address of the admin page relative, so it works under a path prefix', () => {
+    const page = readFileSync(new URL('../server/admin.js', import.meta.url), 'utf8') + readFileSync(new URL('../server/admin.html', import.meta.url), 'utf8');
+    assert.doesNotMatch(page, /['"]\/(api|admin)/);
+    assert.doesNotMatch(page, /location\.origin/);
+  });
+
+  it('says when a server address is plain HTTP to another machine', () => {
+    assert.equal(isUnprotectedAddress('http://10.0.0.5:8787/'), true);
+    assert.equal(isUnprotectedAddress('http://guardrail.example.com'), true);
+    for (const fine of ['https://guardrail.example.com/', 'http://localhost:8787/', 'http://127.0.0.1:8787/', 'not an address']) {
+      assert.equal(isUnprotectedAddress(fine), false, fine);
+    }
   });
 });

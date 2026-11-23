@@ -121,8 +121,15 @@ What a connected browser does:
 
 Put the server behind HTTPS (a reverse proxy with a certificate) for anything beyond a trial:
 over plain HTTP the settings and the enrollment key can be read on the network. The admin key
-is stored only as a hash; ten wrong admin keys from one address lock the admin API for ten
-minutes.
+is stored only as a hash. Wrong admin keys are slowed down after the tenth from one address;
+the right key is never locked out. The settings page warns when the server address is plain
+HTTP to another machine.
+
+Behind a reverse proxy the server may sit under a path prefix (for example
+`https://example.com/kyra/`); open the admin page with the trailing slash and give browsers
+that same address.
+
+To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## What to check before relying on it
 

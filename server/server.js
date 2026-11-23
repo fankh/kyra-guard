@@ -21,8 +21,10 @@ import { defaultSettings, effectiveServices, normalizeSettings } from '../extens
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 1024 * 1024;
-const MAX_FAILED_LOGINS = 10;
-const LOCKOUT_MS = 10 * 60 * 1000;
+// After this many wrong admin keys from one address, each further wrong key is answered late.
+const FREE_WRONG_KEYS = 10;
+const WRONG_KEY_WINDOW_MS = 10 * 60 * 1000;
+const WRONG_KEY_DELAY_MS = 2000;
 const STATIC = Object.freeze({
   '/': ['admin.html', 'text/html; charset=utf-8'],
   '/admin.js': ['admin.js', 'text/javascript; charset=utf-8'],
@@ -122,29 +124,31 @@ const bearer = (req) => /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[
 /**
  * The server, not yet listening.
  *
- * @param {{dataDir: string}} options where state.json is kept
+ * @param {{dataDir: string, wrongKeyDelayMs?: number}} options where state.json is kept
  * @returns {{server: import('node:http').Server, firstAdminKey: string|null}} the admin key
  *   is returned only when this call created the state, so it can be shown once
  */
-export function createManagementServer({ dataDir }) {
+export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DELAY_MS }) {
   const store = openStore(resolve(dataDir));
   const failed = new Map(); // address -> { count, until }
 
-  function adminAllowed(req, res) {
+  /**
+   * The right admin key is always accepted, so nobody can lock the admin out by sending
+   * wrong ones (behind a reverse proxy every visitor has the same address). Guessing is
+   * slowed instead: past a few wrong keys, each further one waits before it is refused.
+   */
+  async function adminAllowed(req, res) {
+    const key = bearer(req);
+    if (key && sameText(sha256(key), store.get().adminKeyHash)) return true;
     const address = req.socket.remoteAddress ?? '';
     const entry = failed.get(address);
-    if (entry && entry.count >= MAX_FAILED_LOGINS && entry.until > Date.now()) {
-      send(res, 429, { error: 'tooManyAttempts' });
-      return false;
-    }
-    const key = bearer(req);
-    if (key && sameText(sha256(key), store.get().adminKeyHash)) {
-      failed.delete(address);
-      return true;
-    }
     const count = entry && entry.until > Date.now() ? entry.count + 1 : 1;
-    failed.set(address, { count, until: Date.now() + LOCKOUT_MS });
-    send(res, 401, { error: 'unauthorized' });
+    failed.set(address, { count, until: Date.now() + WRONG_KEY_WINDOW_MS });
+    if (failed.size > 10000) failed.clear(); // a flood of addresses must not grow the table for ever
+    if (count > FREE_WRONG_KEYS) {
+      await new Promise((done) => { setTimeout(done, wrongKeyDelayMs); });
+      send(res, 429, { error: 'tooManyAttempts' });
+    } else send(res, 401, { error: 'unauthorized' });
     return false;
   }
 
@@ -175,7 +179,7 @@ export function createManagementServer({ dataDir }) {
   }
 
   async function admin(req, res, path) {
-    if (!adminAllowed(req, res)) return;
+    if (!(await adminAllowed(req, res))) return;
     if (path === '/api/admin/state' && req.method === 'GET') return send(res, 200, adminView(store.get()));
     if (path === '/api/admin/settings' && req.method === 'PUT') {
       const body = await readJson(req);

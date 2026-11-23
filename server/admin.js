@@ -36,7 +36,7 @@ const TEXT = {
     saved: 'Saved. Browsers pick it up at their next check.',
     savedDropped: 'Saved, but $1 own services and $2 own rules in the document could not be used and were left out.',
     errUnauthorized: 'The admin key was not accepted.',
-    errTooMany: 'Too many wrong attempts. Try again in ten minutes.',
+    errTooMany: 'Too many wrong attempts. Check the admin key and try again.',
     errJson: 'The document is not valid JSON.',
     errServer: 'The server did not accept the request.',
   },
@@ -74,7 +74,7 @@ const TEXT = {
     saved: '저장되었습니다. 브라우저는 다음 확인 시 반영합니다.',
     savedDropped: '저장되었으나 문서의 직접 추가 서비스 $1개와 사용자 규칙 $2개는 사용할 수 없어 제외되었습니다.',
     errUnauthorized: '관리자 키가 승인되지 않았습니다.',
-    errTooMany: '잘못된 시도가 많습니다. 10분 후 다시 시도하십시오.',
+    errTooMany: '잘못된 시도가 많습니다. 관리자 키를 확인한 후 다시 시도하십시오.',
     errJson: '문서가 올바른 JSON 형식이 아닙니다.',
     errServer: '서버에서 요청이 승인되지 않았습니다.',
   },
@@ -98,7 +98,8 @@ function showError(text) {
 
 /** Calls the admin API with the key of this tab; null when the call was refused. */
 async function call(method, path, body) {
-  const response = await fetch(path, {
+  // Relative to the page, so the server also works behind a reverse proxy under a path prefix.
+  const response = await fetch(new URL(path, document.baseURI), {
     method,
     headers: { Authorization: `Bearer ${sessionStorage.getItem(KEY) ?? ''}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -136,7 +137,7 @@ function show(state) {
     detail.textContent = value;
     return [term, detail];
   }));
-  $('address').textContent = `${location.origin}/`;
+  $('address').textContent = new URL('.', document.baseURI).href;
   $('enrollment-key').textContent = state.enrollmentKey;
   $('refresh').value = state.refreshMinutes;
   $('document').value = JSON.stringify(settings, null, 2);
@@ -146,7 +147,7 @@ $('sign-in-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   sessionStorage.setItem(KEY, $('admin-key').value.trim());
   $('admin-key').value = '';
-  show(await call('GET', '/api/admin/state'));
+  show(await call('GET', 'api/admin/state'));
 });
 
 $('sign-out').addEventListener('click', () => {
@@ -169,7 +170,7 @@ $('save').addEventListener('click', async () => {
     settings = null;
   }
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return showError(t('errJson'));
-  const state = await call('PUT', '/api/admin/settings', { settings, refreshMinutes: Number($('refresh').value) });
+  const state = await call('PUT', 'api/admin/settings', { settings, refreshMinutes: Number($('refresh').value) });
   if (!state) return undefined;
   show(state);
   const { ownServices, ownRules } = state.dropped;
@@ -179,8 +180,8 @@ $('save').addEventListener('click', async () => {
 
 $('rotate').addEventListener('click', async () => {
   if (!confirm(t('confirmRotate'))) return;
-  const state = await call('POST', '/api/admin/enrollment-key');
+  const state = await call('POST', 'api/admin/enrollment-key');
   if (state) show(state);
 });
 
-if (sessionStorage.getItem(KEY)) show(await call('GET', '/api/admin/state'));
+if (sessionStorage.getItem(KEY)) show(await call('GET', 'api/admin/state'));

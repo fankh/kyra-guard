@@ -4,7 +4,7 @@
 
 import { LOG_KEY, toCsv } from '../lib/reporter.js';
 import { BUILTIN_RULES, activeRules, compileCustomRule, maskText, scanText } from '../lib/rules.js';
-import { normalizeServerUrl } from '../lib/remote.js';
+import { isUnprotectedAddress, normalizeServerUrl } from '../lib/remote.js';
 import {
   SERVER_CACHE_KEY, SERVER_KEY, SERVER_STATUS_KEY, SETTINGS_KEY, defaultSettings, effectiveServices, loadSettings,
   normalizeSettings, originsFor, serverConfig,
@@ -270,6 +270,7 @@ async function renderServer(note = '') {
       : `${t(`serverErr_${status.error}`)}${source === 'server' ? ` ${t('serverStatusHeld')}` : ''}`;
   }
   if (server?.managed) text = `${text} ${t('serverStatusPolicy')}`.trim();
+  if (server && isUnprotectedAddress(server.url)) text = `${text} ${t('serverWarnHttp')}`.trim();
   setText('server-status', text);
 }
 

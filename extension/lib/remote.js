@@ -24,6 +24,14 @@ export function normalizeServerUrl(input) {
   return `${url.origin}${path}`;
 }
 
+/** True when the address is plain HTTP to another machine: what is downloaded can be read on the way. */
+export function isUnprotectedAddress(input) {
+  const base = normalizeServerUrl(input);
+  if (!base) return false;
+  const url = new URL(base);
+  return url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+}
+
 export function clampRefreshMinutes(value) {
   const minutes = Number(value);
   if (!Number.isFinite(minutes)) return DEFAULT_REFRESH_MINUTES;
