@@ -13,6 +13,11 @@ localize();
 
 const korean = chrome.i18n.getUILanguage().toLowerCase().startsWith('ko');
 const ruleName = (rule) => (korean ? rule.nameKo || rule.name : rule.name);
+// The log keeps rule names as recorded (English for the built-in rules, so the saved CSV
+// reads the same everywhere); a Korean browser shows the built-in ones in Korean.
+const LOG_RULE_NAMES = new Map(BUILTIN_RULES.map((rule) => [rule.name, rule.nameKo]));
+LOG_RULE_NAMES.set('File that cannot be checked', t('fileUnscannable'));
+const logRuleName = (name) => (korean && LOG_RULE_NAMES.get(name)) || name;
 const $ = (id) => document.getElementById(id);
 
 let settings = defaultSettings();
@@ -198,7 +203,7 @@ async function renderLog() {
   body.replaceChildren();
   for (const entry of entries.slice(0, 100)) {
     const tag = el('span', { className: `tag ${LOG_TONE[entry.action] ?? 'note'}`, textContent: t(`log_${entry.action}`) });
-    const detail = [entry.fileName, (entry.rules ?? []).join(', '), entry.reason].filter(Boolean).join(' · ');
+    const detail = [entry.fileName, (entry.rules ?? []).map(logRuleName).join(', '), entry.reason].filter(Boolean).join(' · ');
     const service = el('td', {}, [entry.serviceName || '—']);
     if (entry.host) service.append(el('small', { textContent: entry.host }));
     body.append(el('tr', {}, [el('td', { textContent: formatTime(entry.at) }), el('td', {}, [tag]), service, el('td', { className: 'detail', textContent: detail })]));

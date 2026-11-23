@@ -271,6 +271,9 @@ def main() -> int:
             check(any(e["action"] == "proceeded" and e.get("reason") == "공개 문서 확인" for e in entries), "the reason is kept")
             options.bring_to_front()
             wait_until(lambda: options.locator("#log tbody tr").count() >= 9, message="log table")
+            shown = options.locator("#log tbody").inner_text()
+            check("카드번호" in shown and "Payment card number" not in shown,
+                  "the log table shows built-in rule names in the browser's language")
             options.locator("#log").scroll_into_view_if_needed()
             shot(options, "free-log.png")
             with options.expect_download() as download:
