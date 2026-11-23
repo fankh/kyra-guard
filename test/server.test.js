@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import {
-  clampRefreshMinutes, fetchServerSettings, isUnprotectedAddress, normalizeServerUrl,
+  buildCheckIn, clampRefreshMinutes, fetchServerSettings, isUnprotectedAddress, normalizeServerUrl, sendCheckIn,
 } from '../extension/lib/remote.js';
 import {
   SERVER_CACHE_KEY, SERVER_KEY, defaultSettings, loadSettings, normalizeSettings, serverConfig,
@@ -31,10 +31,10 @@ describe('the server address', () => {
   });
 
   it('comes from browser policy before the settings page', async () => {
-    const typed = { [SERVER_KEY]: { url: 'https://typed.example', key: ' k1 ' } };
-    assert.deepEqual(await serverConfig(storage({ local: typed })), { url: 'https://typed.example/', key: 'k1', managed: false });
-    assert.deepEqual(await serverConfig(storage({ managed: { serverUrl: 'https://pushed.example', serverKey: 'k2' }, local: typed })),
-      { url: 'https://pushed.example/', key: 'k2', managed: true });
+    const typed = { [SERVER_KEY]: { url: 'https://typed.example', key: ' k1 ', label: '  Kim   PC \n' } };
+    assert.deepEqual(await serverConfig(storage({ local: typed })), { url: 'https://typed.example/', key: 'k1', label: 'Kim PC', managed: false });
+    assert.deepEqual(await serverConfig(storage({ managed: { serverUrl: 'https://pushed.example', serverKey: 'k2', deviceLabel: 'PC-07' }, local: typed })),
+      { url: 'https://pushed.example/', key: 'k2', label: 'PC-07', managed: true });
     assert.equal(await serverConfig(storage()), null);
   });
 });
@@ -63,6 +63,40 @@ describe('settings from a server', () => {
     }));
     assert.equal(loaded.source, 'managed');
     assert.equal(loaded.settings.organisation, 'Policy');
+  });
+});
+
+describe('what a browser reports', () => {
+  const now = new Date(2026, 10, 23, 15, 0).getTime();
+  const at = (daysBack, action, extra = {}) => ({ at: now - daysBack * 86400000, action, host: 'chatgpt.com', serviceName: 'ChatGPT', ...extra });
+  const report = buildCheckIn({
+    id: 'browser-0001', label: '  Kim   PC ', extensionVersion: '1.0.0', settingsVersion: 'v1', settings: defaultSettings(), pendingAccess: 2, now,
+    log: [
+      at(0, 'prompt_blocked', { rules: ['Payment card number'] }), at(0, 'file_blocked', { fileName: 'customers.xlsx' }), at(0, 'blocked'),
+      at(0, 'prompt_warned'), at(1, 'warned'), at(1, 'proceeded', { reason: 'checking the public docs' }), at(1, 'prompt_sent_after_warning'),
+      at(6, 'file_warned'), at(7, 'prompt_blocked'), at(40, 'blocked'),
+    ],
+  });
+
+  it('is a name, versions, whether the checks are on, and counts per day', () => {
+    assert.deepEqual(Object.keys(report), ['id', 'label', 'extensionVersion', 'settingsVersion', 'checks', 'pendingAccess', 'days']);
+    assert.equal(report.label, 'Kim PC');
+    assert.deepEqual(report.checks, { prompts: true, files: true });
+    assert.equal(report.days.length, 7);
+    assert.deepEqual(report.days.at(-1), { day: '2026-11-23', blocked: 3, warned: 1, sentAfterWarning: 0 });
+    assert.deepEqual(report.days.at(-2), { day: '2026-11-22', blocked: 0, warned: 1, sentAfterWarning: 2 });
+    assert.deepEqual(report.days[0], { day: '2026-11-17', blocked: 0, warned: 1, sentAfterWarning: 0 });
+  });
+
+  it('never carries a site, a rule, a file name or a typed reason', () => {
+    const sent = JSON.stringify(report);
+    for (const secret of ['chatgpt', 'ChatGPT', 'Payment card', 'customers.xlsx', 'public docs', 'rules', 'host', 'reason', 'fileName']) {
+      assert.equal(sent.includes(secret), false, secret);
+    }
+  });
+
+  it('has no counts when the activity log is off', () => {
+    assert.equal(buildCheckIn({ id: 'browser-0001', extensionVersion: '1.0.0', settingsVersion: null, settings: defaultSettings(), pendingAccess: 0, log: null }).days, null);
   });
 });
 
@@ -115,6 +149,42 @@ describe('the management server', () => {
     assert.deepEqual(await fetchServerSettings({ url: base, key: 'wrong' }), { ok: false, error: 'unauthorized' });
     assert.deepEqual(await fetchServerSettings({ url: base }), { ok: false, error: 'unauthorized' });
     assert.deepEqual(await fetchServerSettings({ url: base, key: enrollmentKey, version }), { ok: true, unchanged: true });
+  });
+
+  it('keeps the last check-in of each browser, and only the fields it knows', async () => {
+    const { enrollmentKey, version } = await state();
+    const mine = buildCheckIn({ id: 'browser-0001', label: 'Kim PC', extensionVersion: '1.0.0', settingsVersion: version, settings: defaultSettings(), pendingAccess: 0, log: [] });
+    assert.deepEqual(await sendCheckIn({ url: base, key: 'wrong' }, mine), { ok: false });
+    assert.deepEqual(await sendCheckIn({ url: base, key: enrollmentKey }, { ...mine, host: 'chatgpt.com', rules: ['x'], extra: 'y'.repeat(50) }), { ok: true });
+    assert.deepEqual(await sendCheckIn({ url: base, key: enrollmentKey }, { ...mine, label: 'Kim PC (new)' }), { ok: true });
+    assert.deepEqual(await sendCheckIn({ url: base, key: enrollmentKey }, { ...mine, id: 'short' }), { ok: false });
+    assert.deepEqual(await sendCheckIn({ url: base, key: enrollmentKey }, { ...mine, id: 'browser-0002', label: '', settingsVersion: 'old', days: null }), { ok: true });
+
+    const listed = await (await fetch(`${base}api/admin/browsers`, { headers: asAdmin() })).json();
+    assert.equal(listed.version, version);
+    assert.equal(listed.browsers.length, 2);
+    const first = listed.browsers.find((b) => b.id === 'browser-0001');
+    assert.deepEqual(Object.keys(first).sort(),
+      ['checks', 'days', 'extensionVersion', 'firstSeen', 'id', 'label', 'lastSeen', 'pendingAccess', 'settingsVersion']);
+    assert.equal(first.label, 'Kim PC (new)');
+    assert.equal(first.days.length, 7);
+    assert.equal(readFileSync(join(dataDir, 'state.json'), 'utf8').includes('127.0.0.1'), false, 'no network address is kept');
+    assert.equal((await fetch(`${base}api/admin/browsers`)).status, 401);
+
+    await fetch(`${base}api/admin/browsers/browser-0002`, { method: 'DELETE', headers: asAdmin() });
+    const after = await (await fetch(`${base}api/admin/browsers`, { headers: asAdmin() })).json();
+    assert.deepEqual(after.browsers.map((b) => b.id), ['browser-0001']);
+  });
+
+  it('refuses a check-in that is too large', async () => {
+    const { enrollmentKey } = await state();
+    const big = await fetch(`${base}api/checkin`, {
+      method: 'POST', headers: { Authorization: `Bearer ${enrollmentKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'browser-0003', label: 'x'.repeat(40000) }),
+    }).then((r) => r.status, () => 'closed');
+    assert.ok(big === 413 || big === 'closed', String(big));
+    const listed = await (await fetch(`${base}api/admin/browsers`, { headers: asAdmin() })).json();
+    assert.equal(listed.browsers.some((b) => b.id === 'browser-0003'), false);
   });
 
   it('answers the browser from any origin, as an extension needs', async () => {

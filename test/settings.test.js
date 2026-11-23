@@ -154,7 +154,7 @@ describe('the package', () => {
     assert.deepEqual(originsFor({ domains: ['llm.corp.example'] }), ['*://*.llm.corp.example/*']);
   });
 
-  it('reaches the network in one place only: the download from a management server', () => {
+  it('reaches the network in one place only: the download from and the check-in with a management server', () => {
     const dirs = ['../extension/', '../extension/lib/', '../extension/ui/', '../extension/content/'];
     const network = /\bfetch\s*\(|XMLHttpRequest|WebSocket\s*\(|sendBeacon|EventSource/;
     for (const dir of dirs) {
@@ -162,9 +162,9 @@ describe('the package', () => {
         // Reading a file of the package itself (the texts of a chosen language) is not a network request.
         const source = read(dir + name).replaceAll('fetch(chrome.runtime.getURL(', 'packaged(');
         if (dir + name === '../extension/lib/remote.js') {
-          assert.equal(source.match(/\bfetchImpl\(/g).length, 1, 'one request, in fetchServerSettings');
-          assert.match(source, /method: 'GET'/);
-          assert.doesNotMatch(source, /\bbody\s*:/, 'the request sends no body');
+          assert.equal(source.match(/\bfetchImpl\(/g).length, 2, 'two requests: the download and the check-in');
+          assert.equal(source.match(/\bbody\s*:/g).length, 1, 'only the check-in sends a body');
+          assert.match(source, /body: JSON\.stringify\(report\)/, 'and that body is the report built by buildCheckIn');
         } else {
           assert.doesNotMatch(source, network, `${dir}${name}`);
         }

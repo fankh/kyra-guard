@@ -2,9 +2,11 @@
 // KYRA AI Guardrail Free: management server.
 //
 // A small program an organisation runs itself, so that every browser with the extension
-// downloads the same settings. It holds one settings document and hands it out; the
-// extension sends it nothing about the person or what they do, and the server keeps no
-// record of who asked. No dependencies beyond Node 20.
+// downloads the same settings, and so that the organisation can see which browsers are
+// covered. It holds one settings document and hands it out, and it keeps the last check-in
+// of each browser: a name, versions, whether the checks are on, and daily counts. It is never
+// told a site, a rule, a file name or what was typed, and it does not keep network addresses.
+// No dependencies beyond Node 20.
 //
 //   node server/server.js                    start (PORT, HOST and KYRA_DATA_DIR are read)
 //   node server/server.js --reset-admin-key  make a new admin key and show it once
@@ -15,12 +17,15 @@ import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DEFAULT_REFRESH_MINUTES, clampRefreshMinutes } from '../extension/lib/remote.js';
+import { CHECKIN_DAYS, DEFAULT_REFRESH_MINUTES, MAX_LABEL_LENGTH, clampRefreshMinutes, cleanLabel } from '../extension/lib/remote.js';
 import { activeRules } from '../extension/lib/rules.js';
 import { defaultSettings, effectiveServices, normalizeSettings } from '../extension/lib/settings.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 1024 * 1024;
+const MAX_CHECKIN_BYTES = 16 * 1024;
+const MAX_BROWSERS = 5000;
+const MAX_COUNT = 100000;
 // After this many wrong admin keys from one address, each further wrong key is answered late.
 const FREE_WRONG_KEYS = 10;
 const WRONG_KEY_WINDOW_MS = 10 * 60 * 1000;
@@ -95,13 +100,13 @@ function send(res, status, body, headers = {}) {
   res.end(text);
 }
 
-function readJson(req) {
+function readJson(req, limit = MAX_BODY_BYTES) {
   return new Promise((done, fail) => {
     const chunks = [];
     let size = 0;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > limit) {
         fail(Object.assign(new Error('too large'), { status: 413 }));
         req.destroy();
         return;
@@ -117,6 +122,26 @@ function readJson(req) {
     });
     req.on('error', fail);
   });
+}
+
+const shortText = (value, length) => (typeof value === 'string' ? value.slice(0, length) : '');
+const count = (value) => Math.min(MAX_COUNT, Math.max(0, Math.trunc(Number(value)) || 0));
+
+/** A check-in with only the fields the server keeps, or null when it is not one. */
+function cleanCheckIn(body) {
+  if (!body || typeof body !== 'object' || typeof body.id !== 'string' || !/^[\w-]{8,64}$/.test(body.id)) return null;
+  const days = Array.isArray(body.days) ? body.days.slice(-CHECKIN_DAYS)
+    .filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d.day))
+    .map((d) => ({ day: d.day, blocked: count(d.blocked), warned: count(d.warned), sentAfterWarning: count(d.sentAfterWarning) })) : null;
+  return {
+    id: body.id,
+    label: cleanLabel(body.label).slice(0, MAX_LABEL_LENGTH),
+    extensionVersion: shortText(body.extensionVersion, 32),
+    settingsVersion: shortText(body.settingsVersion, 80) || null,
+    checks: { prompts: body.checks?.prompts === true, files: body.checks?.files === true },
+    pendingAccess: count(body.pendingAccess),
+    days,
+  };
 }
 
 const bearer = (req) => /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1] ?? '';
@@ -152,22 +177,50 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
     return false;
   }
 
-  /** What the extension asks for. Any web origin may read it with the enrolment key. */
-  function settingsForBrowsers(req, res) {
-    const cors = {
-      'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'ETag', Vary: 'Origin',
-    };
+  const cors = {
+    'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'ETag', Vary: 'Origin',
+  };
+
+  /** Answers a browser's preflight, or refuses a request without the enrolment key. True when handled. */
+  function browserGate(req, res, method) {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
-        ...cors, 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Allow-Headers': 'Authorization, If-None-Match',
+        ...cors, 'Access-Control-Allow-Methods': method, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-None-Match',
         'Access-Control-Allow-Private-Network': 'true', 'Access-Control-Max-Age': '600',
       });
       res.end();
-      return;
+      return true;
     }
-    if (req.method !== 'GET') return send(res, 405, { error: 'method' }, cors);
+    if (req.method !== method) {
+      send(res, 405, { error: 'method' }, cors);
+      return true;
+    }
+    const { enrollmentKey } = store.get();
+    if (enrollmentKey && !sameText(bearer(req), enrollmentKey)) {
+      send(res, 401, { error: 'unauthorized' }, cors);
+      return true;
+    }
+    return false;
+  }
+
+  /** A browser says it is covered. The last check-in of each browser is kept, nothing older. */
+  async function checkIn(req, res) {
+    if (browserGate(req, res, 'POST')) return undefined;
+    const report = cleanCheckIn(await readJson(req, MAX_CHECKIN_BYTES));
+    if (!report) return send(res, 400, { error: 'checkIn' }, cors);
+    const browsers = { ...(store.get().browsers ?? {}) };
+    const known = browsers[report.id];
+    if (!known && Object.keys(browsers).length >= MAX_BROWSERS) return send(res, 507, { error: 'full' }, cors);
+    const now = new Date().toISOString();
+    browsers[report.id] = { ...report, firstSeen: known?.firstSeen ?? now, lastSeen: now };
+    store.update({ browsers });
+    return send(res, 200, { ok: true }, cors);
+  }
+
+  /** What the extension asks for. Any web origin may read it with the enrolment key. */
+  function settingsForBrowsers(req, res) {
+    if (browserGate(req, res, 'GET')) return undefined;
     const state = store.get();
-    if (state.enrollmentKey && !sameText(bearer(req), state.enrollmentKey)) return send(res, 401, { error: 'unauthorized' }, cors);
     const version = versionOf(state.settings);
     const etag = `"${version}"`;
     if (req.headers['if-none-match'] === etag) {
@@ -200,6 +253,16 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
         },
       });
     }
+    if (path === '/api/admin/browsers' && req.method === 'GET') {
+      const browsers = Object.values(store.get().browsers ?? {}).sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1));
+      return send(res, 200, { version: versionOf(store.get().settings), browsers });
+    }
+    if (path.startsWith('/api/admin/browsers/') && req.method === 'DELETE') {
+      const browsers = { ...(store.get().browsers ?? {}) };
+      delete browsers[decodeURIComponent(path.slice('/api/admin/browsers/'.length))];
+      store.update({ browsers });
+      return send(res, 200, { ok: true });
+    }
     if (path === '/api/admin/enrollment-key' && req.method === 'POST') {
       store.update({ enrollmentKey: newKey() });
       return send(res, 200, adminView(store.get()));
@@ -212,6 +275,7 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
       const path = new URL(req.url, 'http://localhost').pathname;
       if (path === '/healthz') return send(res, 200, { ok: true });
       if (path === '/api/settings') return settingsForBrowsers(req, res);
+      if (path === '/api/checkin') return await checkIn(req, res);
       if (path.startsWith('/api/admin/')) return await admin(req, res, path);
       const page = req.method === 'GET' ? STATIC[path] : null;
       if (!page) return send(res, 404, { error: 'notFound' });

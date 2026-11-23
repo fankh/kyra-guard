@@ -9,7 +9,7 @@
 import { CATALOG } from './catalog.js';
 import { normalizeDomain } from './matching.js';
 import { ACTIONS } from './policy.js';
-import { normalizeServerUrl } from './remote.js';
+import { cleanLabel, normalizeServerUrl } from './remote.js';
 import { BUILTIN_RULES, MAX_CUSTOM_RULES, RULE_ACTIONS, compileCustomRule } from './rules.js';
 
 export const SETTINGS_KEY = 'settings';
@@ -19,7 +19,8 @@ export const MAX_CUSTOM_SERVICES = 200;
 // 'auto' follows the browser; the others are the languages in _locales/.
 export const LANGUAGES = Object.freeze(['auto', 'en', 'ko']);
 // chrome.storage.local
-export const SERVER_KEY = 'server'; // { url, key }: the management server typed in the settings page
+export const SERVER_KEY = 'server'; // { url, key, label }: the management server typed in the settings page
+export const DEVICE_KEY = 'serverDevice'; // { id }: a random id for this browser, made when it first checks in
 export const SERVER_CACHE_KEY = 'serverSettings'; // { url, version, fetchedAt, settings }: the last download
 export const SERVER_STATUS_KEY = 'serverStatus'; // { url, at, ok, error, version }: how the last download went
 const MAX_DOMAINS_PER_SERVICE = 30;
@@ -162,19 +163,23 @@ export function parseManaged(managed) {
  * The management server to download settings from, or null. An address pushed through
  * browser policy wins over one typed in the settings page, and cannot be changed there.
  *
- * @returns {Promise<{url: string, key: string, managed: boolean}|null>}
+ * `label` is the name this browser has in the organisation's list.
+ *
+ * @returns {Promise<{url: string, key: string, label: string, managed: boolean}|null>}
  */
 export async function serverConfig(storage) {
   try {
-    const pushed = await storage.managed.get(['serverUrl', 'serverKey']);
+    const pushed = await storage.managed.get(['serverUrl', 'serverKey', 'deviceLabel']);
     const url = normalizeServerUrl(pushed?.serverUrl);
-    if (url) return { url, key: typeof pushed.serverKey === 'string' ? pushed.serverKey.trim() : '', managed: true };
+    if (url) {
+      return { url, key: typeof pushed.serverKey === 'string' ? pushed.serverKey.trim() : '', label: cleanLabel(pushed.deviceLabel), managed: true };
+    }
   } catch {
     // No managed storage on this platform.
   }
   const typed = (await storage.local.get(SERVER_KEY))[SERVER_KEY];
   const url = normalizeServerUrl(typed?.url);
-  return url ? { url, key: typeof typed.key === 'string' ? typed.key.trim() : '', managed: false } : null;
+  return url ? { url, key: typeof typed.key === 'string' ? typed.key.trim() : '', label: cleanLabel(typed.label), managed: false } : null;
 }
 
 /**

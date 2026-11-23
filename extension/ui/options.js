@@ -261,6 +261,8 @@ async function renderServer(note = '') {
   $('server-url').value = server?.url ?? $('server-url').value;
   $('server-url').disabled = Boolean(server);
   $('server-key').hidden = Boolean(server);
+  $('server-label').value = server ? server.label : $('server-label').value;
+  $('server-label').disabled = Boolean(server);
   $('server-connect').hidden = Boolean(server);
   $('server-sync').hidden = !server;
   $('server-disconnect').hidden = !server || server.managed;
@@ -278,7 +280,7 @@ $('server-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const url = normalizeServerUrl($('server-url').value);
   if (!url) return renderServer(t('serverErr_address'));
-  await chrome.storage.local.set({ [SERVER_KEY]: { url, key: $('server-key').value.trim() } });
+  await chrome.storage.local.set({ [SERVER_KEY]: { url, key: $('server-key').value.trim(), label: $('server-label').value } });
   $('server-key').value = '';
   server = await serverConfig(chrome.storage);
   await renderServer(t('serverStatusConnecting'));
@@ -296,6 +298,7 @@ $('server-disconnect').addEventListener('click', async () => {
   if (!confirm(t('confirmDisconnect'))) return;
   await chrome.storage.local.remove(SERVER_KEY);
   $('server-url').value = '';
+  $('server-label').value = '';
   await ask({ type: 'syncServer' });
   await load();
 });

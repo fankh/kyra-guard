@@ -28,11 +28,11 @@ addresses; no real AI service appears in them.
 | Files | The text of attached text, Word, Excel and PowerPoint files is checked the same way. |
 | Data rules | 13 built-in rules and your own keyword or regular-expression rules. |
 | Activity log | The last 500 events, kept in the browser. Site and rule only, never the text. |
-| Management server | Optional. A server your organization runs; browsers download settings from it. |
+| Management server | Optional. A server your organization runs; browsers download settings from it and it lists the connected browsers. |
 
-Everything is checked in the browser. Nothing about you or what you send goes anywhere. Out of
-the box the extension makes no network request; with a management server it downloads settings
-and still sends nothing.
+Everything is checked in the browser, and what you send never leaves it. Out of the box the
+extension makes no network request. With a management server it downloads settings and reports
+its name, versions and daily counts, never a site, a rule, a file name or anything typed.
 
 ## 2. Install
 
@@ -159,8 +159,8 @@ HKLM\Software\Policies\Google\Chrome\3rdparty\extensions\<extension id>\policy
 ## 9. Management server
 
 The management server is a small program your organization runs itself. It holds one settings
-document and hands it to every connected browser. It receives nothing about people or what they
-send, and keeps no record of who asked.
+document and hands it to every connected browser, and it lists the connected browsers with their
+versions and daily counts. It is never told a site, a rule, a file name or what anyone typed.
 
 ### Start the server
 
@@ -199,10 +199,16 @@ browsers need, and how often browsers check (5 minutes to one day, 30 minutes by
 **Make a new enrollment key** stops browsers that hold the old key from downloading; they keep
 the settings they have until they are given the new key.
 
+**Connected browsers** lists the last check-in of each browser: its name, the extension version,
+whether it is on the current settings, whether the checks are on, when it was last seen, and
+the counts of the last 7 days. A browser not seen for 7 days is marked. **Remove** takes a
+browser off the list, for example a retired PC.
+
 ### Connect a browser
 
-In the extension settings, under **Management server**, enter the server address and the
-enrollment key and press **Connect**.
+In the extension settings, under **Management server**, enter the server address, the
+enrollment key and, if you like, a name for this browser, and press **Connect**. The name is
+what the admin page shows for this browser.
 
 ![The Management server section before connecting](images/en/13-server-not-connected.png)
 
@@ -215,7 +221,9 @@ Once connected, the settings come from the server and the page is read-only.
 - **Download now** fetches the settings at once instead of waiting for the next check.
 - **Disconnect** returns to this browser's own settings.
 - With browser management, push the address and key as the `serverUrl` and `serverKey` policy
-  values instead. A person then cannot disconnect.
+  values instead, and the name as `deviceLabel`. A person then cannot disconnect.
+- The page warns when the server address is plain HTTP to another machine, because the settings
+  and the enrollment key can then be read on the network.
 
 ### What a connected browser does
 
@@ -227,8 +235,28 @@ Once connected, the settings come from the server and the page is read-only.
 | `settingsJson` also pushed by policy | The policy settings win over the server |
 | An own service in the server's settings | Needs **Grant access** once in each browser |
 
-The request is a plain `GET` with the enrollment key. It carries no name, no browser id and no
-activity.
+### What a connected browser reports
+
+| Sent at each check-in | Never sent |
+|---|---|
+| The name given to the browser (optional) and a random browser id | Sites visited or used |
+| Extension version and the version of the settings in force | Which rule matched |
+| Whether the message check and the file check are on | File names |
+| How many own services still wait for site access | The reason typed on a warning page |
+| Counts per day for the last 7 days: blocked, warned, sent after a warning | Anything typed or attached |
+
+The counts come from the browser's own activity log, which keeps 500 events; with the log off no
+counts are sent. The server keeps the last check-in of each browser and no network address.
+
+### Running it for real
+
+- Put the server behind HTTPS, with a reverse proxy that holds the certificate.
+- The server may sit under a path prefix, for example `https://example.com/kyra/`. Open the
+  admin page with the trailing slash and give browsers that same address.
+- Wrong admin keys are slowed down after the tenth from one address; the right key is never
+  locked out.
+- Back up the `state.json` file in the data folder. It holds the settings, the enrollment key
+  and the list of browsers.
 
 ## 10. What to check before relying on it
 
@@ -236,9 +264,10 @@ activity.
 - **Only the browser is covered.** Desktop AI apps, command-line tools and other browsers are not.
 - **A person can remove the extension or disconnect** unless an administrator force-installs it
   and pushes the settings or the server address through browser policy.
-- **There is no central log.** The activity log stays in each browser, with or without the
-  management server.
+- **There is no central log.** The management server shows counts per browser and day, not
+  what happened; the activity log stays in each browser.
 - **The management server is one set of settings for everyone.** It has no users, groups or
   change history.
+- **The list of browsers is what each browser says about itself.** A name is whatever was typed.
 - **Sites differ.** Sending is recognised by the Enter key and by send buttons. Check it on the
   AI sites you use.

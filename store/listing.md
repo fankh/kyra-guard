@@ -52,7 +52,7 @@ Private by design
 
 For teams
 - Save the settings to a file and share them, or let an administrator push them through browser policy.
-- An organization can run the small open-source management server itself; connected browsers download their settings from it and send it nothing.
+- An organization can run the small open-source management server itself. Connected browsers download their settings from it and report their name, versions and daily counts, never sites, rules or what you type.
 - Shown in the browser's language, or in English or Korean if you choose.
 
 What it does not do
@@ -92,7 +92,7 @@ KYRA AI Guardrail Free는 민감한 데이터가 AI 서비스로 전송되지 �
 
 팀 사용
 - 설정을 파일로 저장하여 공유, 또는 관리자가 브라우저 정책으로 배포
-- 조직이 오픈 소스 관리 서버를 직접 운영하는 경우 연결된 브라우저가 설정을 내려받으며 서버로 전송하는 정보 없음
+- 조직이 오픈 소스 관리 서버를 직접 운영하는 경우 연결된 브라우저가 설정을 내려받고 이름, 버전, 일별 건수를 보고. 사이트, 규칙, 입력 내용은 미전송
 - 표시 언어: 브라우저 언어 또는 설정에서 선택한 영어·한국어
 
 추가적으로 확인해야 되는 부분
@@ -128,7 +128,11 @@ check it against the rules; the text is not stored and not transmitted. The acti
 (site name, rule name, file name, the reason the user typed on a warning page) stays in
 `chrome.storage.local` on the device.
 The optional management server belongs to the user's organization, not to the publisher; the
-extension sends it a GET request with the enrollment key and no user data.
+extension downloads settings from it and reports the name given to the browser, a random
+browser id, the extension and settings versions, whether the checks are on, and daily counts of
+blocked and warned events. It reports no site, rule, file name or typed text. Nothing is sent to
+the publisher. If the form asks about "User activity", declare these counts as sent to the
+user's own organization, only when the user or their administrator connects a server.
 
 Certify all three statements:
 - Data is not sold or transferred to third parties, outside the approved use cases.

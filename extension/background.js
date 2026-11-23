@@ -1,7 +1,8 @@
 // Service worker of the free edition. The settings are turned into declarativeNetRequest
 // rules, and what is sent to AI sites is checked here with the rules in lib/rules.js.
-// Nothing leaves the browser. The one network request it can make is downloading the
-// settings from a management server, and only when an organisation set one up (lib/remote.js).
+// What is typed never leaves the browser. Only when an organisation set up a management
+// server does the worker talk to a network address: it downloads the settings and checks in
+// with its versions and daily counts (lib/remote.js says exactly what).
 
 import { buildDomainIndex, findService, normalizeDomain } from './lib/matching.js';
 import { continueUrl } from './lib/pageparams.js';
@@ -9,10 +10,10 @@ import {
   buildDynamicRules, buildSessionRules, countByAction, parsePolicy, policyFingerprint, promptMatchPatterns,
 } from './lib/policy.js';
 import { MAX_REASON_LENGTH, createLog, makeEntry, summarize } from './lib/reporter.js';
-import { DEFAULT_REFRESH_MINUTES, fetchServerSettings } from './lib/remote.js';
+import { DEFAULT_REFRESH_MINUTES, buildCheckIn, fetchServerSettings, sendCheckIn } from './lib/remote.js';
 import { activeRules, maskText, scanText } from './lib/rules.js';
 import {
-  SERVER_CACHE_KEY, SERVER_KEY, SERVER_STATUS_KEY, SETTINGS_KEY, loadSettings, originsFor, serverConfig, toPolicyJson,
+  DEVICE_KEY, SERVER_CACHE_KEY, SERVER_KEY, SERVER_STATUS_KEY, SETTINGS_KEY, loadSettings, originsFor, serverConfig, toPolicyJson,
 } from './lib/settings.js';
 
 const MINUTE_MS = 60 * 1000;
@@ -173,6 +174,22 @@ async function uiStrings() {
 
 // ---------------------------------------------------------------- the management server
 
+/** Tells the management server that this browser is covered, and how its checks are doing. */
+async function checkIn(server, settingsVersion) {
+  // The settings just downloaded are put in force first, so the report describes them.
+  current = null;
+  const { settings, pending } = await state();
+  let device = (await local.get(DEVICE_KEY))[DEVICE_KEY];
+  if (!device?.id) {
+    device = { id: crypto.randomUUID() };
+    await local.set({ [DEVICE_KEY]: device });
+  }
+  await sendCheckIn(server, buildCheckIn({
+    id: device.id, label: server.label, extensionVersion: chrome.runtime.getManifest().version, settingsVersion,
+    settings, pendingAccess: pending.length, log: settings.log ? await log.read() : null,
+  }));
+}
+
 let syncing = Promise.resolve();
 /** Downloads the settings from the management server, if there is one. One at a time. */
 function syncServer() {
@@ -180,7 +197,7 @@ function syncServer() {
     const server = await serverConfig(chrome.storage);
     if (!server) {
       await chrome.alarms.clear(ALARM_SERVER);
-      await local.remove([SERVER_CACHE_KEY, SERVER_STATUS_KEY]);
+      await local.remove([SERVER_CACHE_KEY, SERVER_STATUS_KEY, DEVICE_KEY]);
       return { ok: true, connected: false };
     }
     const cached = (await local.get(SERVER_CACHE_KEY))[SERVER_CACHE_KEY];
@@ -201,6 +218,7 @@ function syncServer() {
     };
     await local.set({ [SERVER_STATUS_KEY]: status });
     await chrome.alarms.create(ALARM_SERVER, { periodInMinutes: minutes });
+    if (result.ok) await checkIn(server, status.version);
     return { ...status, connected: true };
   });
   syncing = run.catch((error) => console.error('management server', error));

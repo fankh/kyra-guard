@@ -11,6 +11,11 @@
       "description": "Address of the organisation's own KYRA AI Guardrail Free management server, for example https://guardrail.example.com/. The extension downloads its settings from there. Ignored when settingsJson is set.",
       "type": "string"
     },
+    "deviceLabel": {
+      "title": "Name of this browser",
+      "description": "The name this browser has in the management server's list, for example a PC name or a person's name. Optional.",
+      "type": "string"
+    },
     "serverKey": {
       "title": "Enrolment key",
       "description": "The enrolment key shown on the management server's admin page.",

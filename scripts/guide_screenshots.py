@@ -65,6 +65,7 @@ TEXT = {
         "file": ("customers.txt", "Hong Gildong 900101-1234567\nKim Younghee 010-2345-6789\n"),
         "service": "Internal AI portal", "rule": "Project names", "keywords": "apollo, confidential",
         "try": "Contact 010-1234-5678, card 4111 1111 1111 1111, apollo schedule", "reason": "Reviewing a draft of marketing copy",
+        "browser": "Sales team, PC-07",
     },
     "ko": {
         "locale": "ko-KR", "title": "AI 대화 (시연 페이지)", "send": "보내기",
@@ -74,6 +75,7 @@ TEXT = {
         "file": ("고객명단.txt", "홍길동 900101-1234567\n김영희 010-2345-6789\n"),
         "service": "사내 AI 포털", "rule": "프로젝트 이름", "keywords": "apollo, 대외비",
         "try": "담당자 010-1234-5678, 카드 4111 1111 1111 1111, apollo 일정", "reason": "마케팅 문구 초안 검토",
+        "browser": "영업팀 PC-07",
     },
 }
 
@@ -228,23 +230,25 @@ def capture(p, lang: str, port: int) -> None:
             popup.close()
 
             state = managed.admin("PUT", "api/admin/settings", {"settings": {**settings, "organisation": "Acme (server)"}})
+            options.fill("#server-url", managed.url)
+            options.fill("#server-key", state["enrollmentKey"])
+            options.fill("#server-label", text["browser"])
+            options.click("#server-connect")
+            options.wait_for_selector("#managed-banner:not([hidden])")
+            wait_until(lambda: managed.admin("GET", "api/admin/browsers")["browsers"], message="check-in")
+
             admin = context.new_page()
             admin.goto(managed.url)
             admin.screenshot(path=str(out / "16-server-sign-in.png"), clip={"x": 0, "y": 0, "width": 1180, "height": 330})
             admin.fill("#admin-key", managed.admin_key)
             admin.click("#sign-in-form button")
-            admin.wait_for_selector("#console:not([hidden])")
+            admin.wait_for_selector("#browsers tbody tr")
             # The keys of this throwaway server are not worth showing; the picture carries stand-ins.
             admin.evaluate("""() => { document.getElementById('enrollment-key').textContent = 'k3Yq…(enrollment key)';
                 document.getElementById('address').textContent = 'https://guardrail.example.com/'; }""")
             admin.screenshot(path=str(out / "17-server-admin.png"), full_page=True)
             admin.close()
-
             options.bring_to_front()
-            options.fill("#server-url", managed.url)
-            options.fill("#server-key", state["enrollmentKey"])
-            options.click("#server-connect")
-            options.wait_for_selector("#managed-banner:not([hidden])")
             options.evaluate("""() => { const shown = 'https://guardrail.example.com/';
                 document.getElementById('server-url').value = shown;
                 const notice = document.getElementById('local-notice');

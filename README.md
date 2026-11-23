@@ -2,10 +2,11 @@
 
 A Chrome/Edge (Manifest V3) extension that keeps sensitive data out of AI services, with
 **every setting kept in the browser**. What you type is checked on your machine and then
-dropped; nothing about you or what you send goes anywhere. Out of the box the extension makes no
-network request at all. An organisation that wants one set of settings for everyone can run the
-small management server in `server/`; a connected browser then downloads its settings from that
-server and still sends it nothing.
+dropped; what you send never leaves the browser. Out of the box the extension makes no
+network request at all. An organisation that wants one set of settings for everyone, and to see
+which browsers are covered, can run the small management server in `server/`. A connected
+browser downloads its settings from that server and checks in with its name, versions and daily
+counts; it never reports a site, a rule, a file name or anything typed.
 
 - **AI services**: 51 known services (ChatGPT, Claude, Gemini, Copilot, DeepSeek and others).
   Each can be allowed, warned about (a reason is asked first) or blocked. You can add your own.
@@ -17,7 +18,8 @@ server and still sends it nothing.
 - **Activity log**: the last 500 events, in the browser only. It records the site and the rule
   that matched, never the text or the file. It can be saved as CSV.
 - **Management server (optional)**: a small program an organisation runs itself; every connected
-  browser downloads the same settings from it.
+  browser downloads the same settings from it, and the admin page lists the connected browsers
+  with their versions and daily counts.
 - **Language**: follows the browser, or English or Korean chosen in the settings.
 
 **User guide with screenshots:** [English](docs/guide.md) · [한국어](docs/guide.ko.md)
@@ -114,8 +116,22 @@ What a connected browser does:
 
 - It downloads the settings at start and then every 30 minutes (5 minutes to a day, set on the
   admin page). The settings page becomes read-only and shows where the settings come from.
-- The request is a plain `GET` with the enrollment key. It carries no name, no browser id, no
-  activity. The server keeps no record of who asked.
+- After each download it checks in, so the admin page can list the connected browsers. The
+  server keeps the last check-in of each browser and no network address.
+
+| Sent at each check-in | Never sent |
+|---|---|
+| The name given to the browser (optional) and a random browser id | Sites visited or used |
+| Extension version and the version of the settings in force | Which rule matched |
+| Whether the message check and the file check are on | File names |
+| How many own services still wait for site access | The reason typed on a warning page |
+| Counts per day for the last 7 days: blocked, warned, sent after a warning | Anything typed or attached |
+
+- The name is typed under **Management server** when connecting, or pushed as the `deviceLabel`
+  policy value. Without one the list shows the first characters of the browser id.
+- The counts come from the browser's own activity log, which keeps 500 events; with the log off
+  no counts are sent.
+- On the admin page, **Remove** takes a browser off the list (a retired PC, for example).
 - If the server cannot be reached, the settings downloaded last stay in force.
 - Settings pushed as `settingsJson` through browser policy win over the server.
 
@@ -138,10 +154,12 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 - **A person can change or remove it** unless an administrator force-installs it and pushes the
   settings through browser policy.
 - **Only the browser is covered.** Desktop AI apps, command-line tools and other browsers are not.
-- **The log never leaves the browser**, so nobody else sees it. There is no central reporting,
-  with or without the management server: the server hands out settings and collects nothing.
+- **The log never leaves the browser**, so nobody else sees it. The management server shows
+  counts per browser and day, not what happened: no sites, rules or files. There is no central log.
 - **The management server is one set of settings for everyone.** It has no users, groups or
   change history, and a person can disconnect unless the address is pushed through browser policy.
+- **The list of browsers is what each browser says about itself.** A name is whatever was typed,
+  and anyone with the enrollment key can check in.
 - **Sites differ.** Sending is recognised by the Enter key and by send buttons. It was tested
   against a stand-in chat page; check it on the AI sites you use.
 - **Site access.** At install the extension has access to the known AI services only. When you

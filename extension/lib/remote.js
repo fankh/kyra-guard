@@ -1,9 +1,15 @@
 // The optional management server: a small program an organisation runs itself (see server/).
-// The extension only downloads the settings document from it. Nothing about the person or
-// what they do is sent; the request carries the enrolment key and nothing else.
+// A connected browser does two things, and only these:
+//  - it downloads the settings document;
+//  - it checks in, so the organisation can see which browsers are covered: a name, the
+//    extension and settings versions, whether the checks are on, and daily counts of blocked
+//    and warned events. Never a site, a rule, a file name or anything that was typed.
 // This is the only file of the extension that talks to a network address.
 
 export const SETTINGS_PATH = 'api/settings';
+export const CHECKIN_PATH = 'api/checkin';
+export const CHECKIN_DAYS = 7;
+export const MAX_LABEL_LENGTH = 80;
 export const DEFAULT_REFRESH_MINUTES = 30;
 export const MIN_REFRESH_MINUTES = 5;
 export const MAX_REFRESH_MINUTES = 1440;
@@ -76,4 +82,68 @@ export async function fetchServerSettings(server, fetchImpl = fetch) {
   if (typeof version !== 'string' || !/^[\w.-]{1,80}$/.test(version)) return { ok: false, error: 'invalid' };
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return { ok: false, error: 'invalid' };
   return { ok: true, unchanged: false, version, refreshMinutes: clampRefreshMinutes(body.refreshMinutes), settings };
+}
+
+const DAY_MS = 86400000;
+const COUNTED = Object.freeze({
+  blocked: 'blocked', prompt_blocked: 'blocked', file_blocked: 'blocked',
+  warned: 'warned', prompt_warned: 'warned', file_warned: 'warned',
+  proceeded: 'sentAfterWarning', prompt_sent_after_warning: 'sentAfterWarning', file_sent_after_warning: 'sentAfterWarning',
+});
+
+const dayOf = (time) => {
+  const d = new Date(time);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** A name for this browser in the organisation's list: trimmed, one line, not too long. */
+export function cleanLabel(input) {
+  return typeof input === 'string' ? input.replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL_LENGTH) : '';
+}
+
+/**
+ * What a browser tells the management server about itself. Built here, in one place, so that
+ * what leaves the browser is easy to read: numbers per day, no sites, no rules, no text.
+ *
+ * @param {{id: string, label?: string, extensionVersion: string, settingsVersion: string|null,
+ *   settings: object, pendingAccess: number, log: object[]|null, now?: number}} input
+ *   `log` is the activity log, or null when the person or the settings turned it off
+ */
+export function buildCheckIn({ id, label, extensionVersion, settingsVersion, settings, pendingAccess, log, now = Date.now() }) {
+  let days = null;
+  if (Array.isArray(log)) {
+    const byDay = new Map();
+    for (let back = CHECKIN_DAYS - 1; back >= 0; back -= 1) byDay.set(dayOf(now - back * DAY_MS), { blocked: 0, warned: 0, sentAfterWarning: 0 });
+    for (const entry of log) {
+      const kind = COUNTED[entry?.action];
+      const day = byDay.get(dayOf(entry?.at));
+      if (kind && day) day[kind] += 1;
+    }
+    days = [...byDay].map(([day, counts]) => ({ day, ...counts }));
+  }
+  return {
+    id,
+    label: cleanLabel(label),
+    extensionVersion: String(extensionVersion),
+    settingsVersion: settingsVersion ?? null,
+    checks: { prompts: settings.inspection.prompts === true, files: settings.inspection.files === true },
+    pendingAccess: Number(pendingAccess) || 0,
+    days,
+  };
+}
+
+/** Sends the check-in. A failure changes nothing in the browser; it is tried again at the next download. */
+export async function sendCheckIn(server, report, fetchImpl = fetch) {
+  const base = normalizeServerUrl(server?.url);
+  if (!base) return { ok: false };
+  const headers = { 'Content-Type': 'application/json' };
+  if (server.key) headers.Authorization = `Bearer ${server.key}`;
+  try {
+    const response = await fetchImpl(`${base}${CHECKIN_PATH}`, {
+      method: 'POST', headers, body: JSON.stringify(report), cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    return { ok: response.ok };
+  } catch {
+    return { ok: false };
+  }
 }

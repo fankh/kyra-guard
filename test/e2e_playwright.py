@@ -381,6 +381,7 @@ def main() -> int:
                 wait_until(lambda: options.locator("#server-connect").is_visible(), message="disconnected after the wrong key")
                 options.fill("#server-url", managed.url)
                 options.fill("#server-key", state["enrollmentKey"])
+                options.fill("#server-label", "QA 노트북")
                 options.click("#server-connect")
                 wait_until(lambda: options.locator("#managed-banner").is_visible(), message="settings from the server")
                 check(options.input_value("#organisation") == "Server Corp" and options.locator("#organisation").is_disabled()
@@ -397,6 +398,17 @@ def main() -> int:
                 options.locator("#server").scroll_into_view_if_needed()
                 shot(options, "free-server.png")
 
+                listed = wait_until(lambda: managed.admin("GET", "api/admin/browsers")["browsers"], message="the browser's check-in")
+                mine = listed[0]
+                check(len(listed) == 1 and mine["label"] == "QA 노트북" and mine["settingsVersion"] == state["version"]
+                      and mine["extensionVersion"] == "1.0.0" and mine["checks"] == {"prompts": True, "files": True},
+                      "the server lists this browser with its name, versions and checks")
+                week = {key: sum(day[key] for day in mine["days"]) for key in ("blocked", "warned", "sentAfterWarning")}
+                check(week["blocked"] >= 3 and week["warned"] >= 2 and week["sentAfterWarning"] >= 2, f"with counts for the week ({week})")
+                reported = json.dumps(listed, ensure_ascii=False)
+                check(not any(text in reported for text in ("allow-ai", "block-ai", "cards.csv", "카드", "Payment", "공개 문서", "127.0.0.1")),
+                      "and no site, rule, file name, reason or network address")
+
                 admin = context.new_page()
                 admin.goto(managed.url)
                 admin.fill("#admin-key", managed.admin_key)
@@ -404,6 +416,9 @@ def main() -> int:
                 admin.wait_for_selector("#console:not([hidden])")
                 check("Server Corp" in admin.inner_text("#summary") and state["enrollmentKey"] in admin.inner_text("#enrollment-key"),
                       "the admin page shows the settings in force and how to connect")
+                admin.wait_for_selector("#browsers tbody tr")
+                check("QA 노트북" in admin.inner_text("#browsers tbody") and "브라우저 1대" in admin.inner_text("#browsers-total"),
+                      "and the connected browsers")
                 document = json.loads(admin.input_value("#document"))
                 document["organisation"] = "Server Corp 2"
                 document["customRules"] = [{"name": "Slow", "type": "regex", "pattern": "(a+)+$", "action": "block"}]
@@ -429,7 +444,8 @@ def main() -> int:
                 check(options.locator("#services tbody tr", has_text="allow-ai.test").count() == 1 and options.locator("#organisation").is_enabled(),
                       "after disconnecting, this browser's own settings are back")
                 stored = sw.evaluate("chrome.storage.local.get(null).then(all => Object.keys(all))")
-                check("serverSettings" not in stored and "server" not in stored, "and nothing of the server is kept")
+                check("serverSettings" not in stored and "server" not in stored and "serverDevice" not in stored,
+                      "and nothing of the server is kept")
             finally:
                 managed.stop()
         finally:

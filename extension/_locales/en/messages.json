@@ -506,7 +506,7 @@
     "message": "Management server (optional)"
   },
   "secServerHelp": {
-    "message": "An organization can run its own small management server and have every browser download the same settings from it. While connected, the settings come from the server and cannot be changed here. The extension only downloads settings: nothing about you or what you send goes to the server, and the activity log stays in this browser."
+    "message": "An organization can run its own small management server. A connected browser downloads its settings from the server, and they cannot be changed here. It also checks in, so the organization can see which browsers are covered: the name below, the extension and settings versions, whether the checks are on, and daily counts of blocked and warned events. The sites you visit, the rules that matched, file names and what you type are never sent; the activity log stays in this browser."
   },
   "optServerUrl": {
     "message": "Server address"
@@ -560,9 +560,12 @@
     "message": "These settings come from your organization's management server and cannot be changed here."
   },
   "serverNotice": {
-    "message": "The settings are downloaded from your organization's management server ($1). The activity log stays in this browser, and nothing about you or what you send goes to the server."
+    "message": "The settings are downloaded from your organization's management server ($1). This browser reports its name, versions and daily counts of blocked and warned events to that server. The activity log and what you send stay in this browser."
   },
   "serverWarnHttp": {
     "message": "This address is not HTTPS: the settings and the enrollment key can be read on the network."
+  },
+  "optServerLabel": {
+    "message": "Name of this browser (optional)"
   }
 }

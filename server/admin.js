@@ -4,7 +4,26 @@
 const TEXT = {
   en: {
     title: 'KYRA AI Guardrail Free: management server',
-    intro: 'Every browser connected to this server downloads the settings below. The server hands out settings only: it receives nothing about people or what they send, and keeps no record of who asked.',
+    intro: 'Every browser connected to this server downloads the settings below and checks in with its name, versions and daily counts. The server is never told a site, a rule, a file name or what anyone typed.',
+    browsers: 'Connected browsers',
+    browsersHelp: 'The last check-in of each browser. Counts are for the last 7 days: blocked, warned, and sent after a warning. They come from each browser\'s own activity log, which keeps 500 events; a dash means the log is off there.',
+    browsersTotal: '$1 browsers: $2 on the current settings, $3 not seen for 7 days.',
+    browsersNone: 'No browser has checked in yet.',
+    colName: 'Browser',
+    colVersion: 'Extension',
+    colSettings: 'Settings',
+    colChecks: 'Checks',
+    colLastSeen: 'Last seen',
+    colWeek: 'Last 7 days',
+    weekValue: '$1 blocked, $2 warned, $3 sent anyway',
+    current: 'current',
+    behind: 'behind',
+    quiet: 'not seen for 7 days',
+    waiting: '$1 own services waiting for site access',
+    noName: '(no name)',
+    remove: 'Remove',
+    confirmRemove: 'Remove this browser from the list? It appears again at its next check-in if it is still connected.',
+    refreshList: 'Refresh the list',
     signIn: 'Sign in',
     adminKey: 'Admin key',
     open: 'Open',
@@ -42,7 +61,26 @@ const TEXT = {
   },
   ko: {
     title: 'KYRA AI Guardrail Free: 관리 서버',
-    intro: '본 서버에 연결된 모든 브라우저가 아래 설정을 내려받습니다. 서버는 설정만 배포하며 사용자 정보와 입력 내용을 수신하지 않고 요청 기록을 보관하지 않습니다.',
+    intro: '본 서버에 연결된 모든 브라우저가 아래 설정을 내려받고 이름, 버전, 일별 건수를 보고합니다. 서버는 사이트, 규칙, 파일 이름, 입력 내용을 수신하지 않습니다.',
+    browsers: '연결된 브라우저',
+    browsersHelp: '브라우저별 최근 보고 내용입니다. 건수는 최근 7일 기준이며 차단, 경고, 경고 후 전송 순입니다. 각 브라우저의 활동 기록(최대 500건)에서 집계하며, 줄표는 해당 브라우저의 기록 사용 중지를 의미합니다.',
+    browsersTotal: '브라우저 $1대: 현재 설정 적용 $2대, 7일간 미접속 $3대.',
+    browsersNone: '보고한 브라우저가 없습니다.',
+    colName: '브라우저',
+    colVersion: '확장 프로그램',
+    colSettings: '설정',
+    colChecks: '검사',
+    colLastSeen: '최근 접속',
+    colWeek: '최근 7일',
+    weekValue: '차단 $1, 경고 $2, 경고 후 전송 $3',
+    current: '현재 버전',
+    behind: '이전 버전',
+    quiet: '7일간 미접속',
+    waiting: '사이트 접근 대기 중인 직접 추가 서비스 $1개',
+    noName: '(이름 없음)',
+    remove: '삭제',
+    confirmRemove: '이 브라우저를 목록에서 삭제하시겠습니까? 연결 상태인 경우 다음 보고 시 다시 표시됩니다.',
+    refreshList: '목록 새로 고침',
     signIn: '로그인',
     adminKey: '관리자 키',
     open: '열기',
@@ -116,10 +154,66 @@ async function call(method, path, body) {
   return null;
 }
 
+const WEEK_MS = 7 * 86400000;
+
+function cell(text, small) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  if (small) {
+    const note = document.createElement('small');
+    note.textContent = small;
+    td.append(note);
+  }
+  return td;
+}
+
+async function showBrowsers() {
+  const list = await call('GET', 'api/admin/browsers');
+  if (!list) return;
+  const body = $('browsers').tBodies[0];
+  const when = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' });
+  let current = 0;
+  let quiet = 0;
+  body.replaceChildren(...list.browsers.map((browser) => {
+    const isCurrent = browser.settingsVersion === list.version;
+    const isQuiet = Date.now() - new Date(browser.lastSeen).getTime() > WEEK_MS;
+    current += isCurrent;
+    quiet += isQuiet;
+    const row = document.createElement('tr');
+    const name = cell(browser.label || t('noName'), browser.id.slice(0, 8));
+    const seen = cell(when.format(new Date(browser.lastSeen)));
+    if (isQuiet) {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = t('quiet');
+      seen.append(document.createElement('br'), tag);
+    }
+    const sum = (key) => browser.days.reduce((total, day) => total + day[key], 0);
+    const week = browser.days ? t('weekValue', [sum('blocked'), sum('warned'), sum('sentAfterWarning')]) : '—';
+    const checks = cell(t('checksValue', [t(browser.checks.prompts ? 'on' : 'off'), t(browser.checks.files ? 'on' : 'off')]),
+      browser.pendingAccess ? t('waiting', [browser.pendingAccess]) : '');
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = t('remove');
+    remove.addEventListener('click', async () => {
+      if (!confirm(t('confirmRemove'))) return;
+      await call('DELETE', `api/admin/browsers/${encodeURIComponent(browser.id)}`);
+      showBrowsers();
+    });
+    const action = document.createElement('td');
+    action.append(remove);
+    row.append(name, cell(browser.extensionVersion), cell(t(isCurrent ? 'current' : 'behind'), browser.settingsVersion ?? ''), checks, seen, cell(week), action);
+    return row;
+  }));
+  $('browsers').parentElement.hidden = list.browsers.length === 0;
+  $('browsers-total').textContent = list.browsers.length ? t('browsersTotal', [list.browsers.length, current, quiet]) : t('browsersNone');
+}
+
 function show(state) {
   $('sign-in').hidden = Boolean(state);
   $('console').hidden = !state;
   if (!state) return;
+  showBrowsers();
   const { summary, settings } = state;
   const onOff = (value) => t(value ? 'on' : 'off');
   const rows = [
@@ -155,6 +249,7 @@ $('sign-out').addEventListener('click', () => {
   show(null);
 });
 
+$('refresh-browsers').addEventListener('click', showBrowsers);
 $('pick').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', async (event) => {
   const [file] = event.target.files;
