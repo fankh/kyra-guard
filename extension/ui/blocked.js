@@ -20,3 +20,9 @@ document.getElementById('back').addEventListener('click', goBack);
 
 // Only top-level navigations are reported; a blocked iframe is not a visit by the user.
 if (!framed && host) ask({ type: 'blocked', host });
+
+// An edition may add to this page (asking for an exception, where the edition has that);
+// its worker says so. Where it has nothing to add, the question simply goes unanswered.
+if (!framed && (await ask({ type: 'blockedExtras' }))?.enabled) {
+  import('./blocked-extra.js').then((extra) => extra.default({ serviceId, host })).catch(() => {});
+}
