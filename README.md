@@ -22,7 +22,7 @@ counts; it never reports a site, a rule, a file name or anything typed.
   with their versions and daily counts.
 - **Language**: follows the browser, or English or Korean chosen in the settings.
 
-**User guide with screenshots:** [English](docs/guide.md) · [한국어](docs/guide.ko.md)
+**User guide with screenshots:** [English](docs/guide.md) · [한국어](docs/guide.ko.md) · [Changelog](CHANGELOG.md)
 
 ## Install
 
