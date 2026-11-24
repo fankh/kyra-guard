@@ -33,6 +33,30 @@
     for (const extension of extensions) EXTRA_READERS.set(String(extension).toLowerCase(), read);
   }
 
+  // Checks an add-on script runs on the first bytes of every file before it is read:
+  // `probe(head, name)` answers why the file cannot be inspected (a short code such as 'kind:detail'),
+  // or nothing when it has no objection.
+  const PROBES = [];
+  const PROBE_BYTES = 1024;
+
+  function registerProbe(probe) {
+    PROBES.push(probe);
+  }
+
+  async function probed(file) {
+    if (!PROBES.length) return null;
+    try {
+      const head = new Uint8Array(await file.slice(0, PROBE_BYTES).arrayBuffer());
+      for (const probe of PROBES) {
+        const reason = probe(head, String(file.name || ''));
+        if (reason) return String(reason);
+      }
+    } catch {
+      // A file whose first bytes cannot be read is judged by its kind, as before.
+    }
+    return null;
+  }
+
   function extensionOf(name) {
     const base = String(name || '').toLowerCase();
     const dot = base.lastIndexOf('.');
@@ -184,9 +208,12 @@
 
   /**
    * The file's text: {scannable: true, text, truncated} (text may be '' for an empty file),
-   * or {scannable: false} when it cannot be read here.
+   * or {scannable: false} when it cannot be read here ({scannable: false, reason} when a
+   * probe says why).
    */
   async function extractText(file) {
+    const reason = await probed(file);
+    if (reason) return { scannable: false, reason };
     const kind = classify(file.name, file.type, file.size);
     if (kind === 'unscannable') return { scannable: false };
     try {
@@ -211,6 +238,6 @@
 
   root.KyraFileCore = {
     classify, extractText, xmlToText, serverReadable, readBase64, MAX_FILE_BYTES, MAX_TEXT_CHARS,
-    registerReader, zipEntries, zipEntryBytes,
+    registerReader, registerProbe, zipEntries, zipEntryBytes,
   };
 })(typeof self !== 'undefined' ? self : globalThis);

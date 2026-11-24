@@ -299,6 +299,8 @@
     return message({
       type: 'scanFile', fileName: file.name, proceed,
       unscannable: !extracted.scannable,
+      // Why it cannot be inspected, when that is known (an edition that looks for it).
+      ...(extracted.reason ? { reason: extracted.reason } : {}),
       content: extracted.scannable ? extracted.text : '',
       // An image or PDF: KYRA reads its text. An older server ignores the bytes.
       ...(extracted.bytes ? { contentBase64: extracted.bytes } : {}),
@@ -308,7 +310,7 @@
   /** Reads the file's text here, or its bytes for KYRA to read when it is an image or a PDF. */
   async function extractFile(file) {
     const extracted = await fileCore.extractText(file);
-    if (!extracted.scannable && images && fileCore.serverReadable(file.name, file.type)) {
+    if (!extracted.scannable && !extracted.reason && images && fileCore.serverReadable(file.name, file.type)) {
       try {
         const bytes = await fileCore.readBase64(file, imageMaxBytes);
         if (bytes) return { scannable: false, bytes };
@@ -325,6 +327,12 @@
     const findings = result.response.findings || [];
     return !result.extracted.bytes || !findings.length
       || findings.every((f) => /^File that c/.test(String(f.name || '')));
+  }
+
+  /** What to say of a file that was not inspected: the reason's own text when there is one. */
+  function notInspectedText(extracted) {
+    const kind = extracted.reason ? String(extracted.reason).split(':')[0] : '';
+    return (kind && chrome.i18n.getMessage(`fileUnscannable_${kind}`)) || t('fileUnscannable');
   }
 
   /** Checks every file; hands them all to the page, or none. */
@@ -357,7 +365,7 @@
       lines: shown.map((r) => ({
         strong: r.file.name,
         rest: r.response.unavailable ? t('fileUnavailable')
-          : notInspected(r) ? t('fileUnscannable')
+          : notInspected(r) ? notInspectedText(r.extracted)
             : findingLines(r.response.findings).map((line) => line.strong + (line.rest ? ` (${line.rest})` : '')).join(', '),
       })),
       note: t(action === 'warn' ? 'fileWarnNote' : 'fileBlockedNote'),
