@@ -98,6 +98,20 @@ describe('own rules', () => {
     assert.equal(tooSlow(/PRJ-\d{4}/g), false);
   });
 
+  it('finds the markings and numbers public bodies use, when those rules are on', () => {
+    const rules = activeRules({ rules: { 'kr-corporate-number': 'warn', 'kr-landline-phone': 'warn' } });
+    const ids = (text) => scanText(text, rules).findings.map((f) => f.id);
+    for (const marked of ['본 문서는 대외비임', 'Ⅱ급 비밀', '3급비밀', 'II급비밀', '군사 기밀']) assert.deepEqual(ids(marked), ['kr-security-marking'], marked);
+    assert.deepEqual(ids('고급 비밀 레시피와 비밀번호 변경 안내'), []);
+    assert.deepEqual(ids('법인등록번호 130111-0006246'), ['kr-corporate-number']);
+    assert.deepEqual(ids('법인등록번호 130111-0006247'), [], 'a wrong check digit');
+    assert.deepEqual(ids('대표전화 02-2039-8160, 팩스 031-123-4567, 070-1234-5678'), ['kr-landline-phone']);
+    assert.equal(scanText('02-2039-8160', rules).findings[0].count, 1);
+    assert.deepEqual(ids('2026-11-24 12:30, 제2026-1234호, 0212345678'), []);
+    // Off unless turned on; the marking warns from the start.
+    assert.deepEqual(scanText('130111-0006246, 02-2039-8160, 대외비', activeRules({})).findings.map((f) => [f.id, f.action]), [['kr-security-marking', 'warn']]);
+  });
+
   it('runs an own rule with the built-in ones', () => {
     const rules = activeRules({
       customRules: [
@@ -109,7 +123,7 @@ describe('own rules', () => {
     });
     const result = scanText('PRJ-2041 is Confidential, 대외비임', rules);
     assert.equal(result.action, 'block');
-    assert.deepEqual(result.findings.map((f) => [f.id, f.category, f.count]), [['custom-a', 'CUSTOM', 1], ['custom-b', 'CUSTOM', 2]]);
+    assert.deepEqual(result.findings.map((f) => [f.id, f.category, f.count]), [['kr-security-marking', 'INTELLECTUAL_PROPERTY', 1], ['custom-a', 'CUSTOM', 1], ['custom-b', 'CUSTOM', 2]]);
   });
 });
 

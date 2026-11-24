@@ -24,10 +24,10 @@ addresses; no real AI service appears in them.
 
 | Area | What happens |
 |---|---|
-| AI services | 51 known services, each allowed, warned about or blocked. You can add your own. |
+| AI services | 65 known services, each allowed, warned about or blocked. You can add your own. |
 | Messages | A message is checked against the data rules before it is sent on an AI site. |
 | Files | The text of attached text, Word, Excel and PowerPoint files is checked the same way. |
-| Data rules | 13 built-in rules and your own keyword or regular-expression rules. |
+| Data rules | 16 built-in rules and your own keyword or regular-expression rules. |
 | Activity log | The last 500 events, kept in the browser. Site and rule only, never the text. |
 | Management server | Optional. A server your organization runs; browsers download settings from it and it lists the connected browsers. |
 
@@ -82,10 +82,11 @@ The **Data rules** section lists the built-in rules. Each can be off, warn or bl
 |---|---|
 | Resident registration number (KR), foreigner registration number (KR) | Block |
 | Passport number (KR), driver licence number (KR), mobile phone number (KR) | Warn |
+| Security marking (KR): 대외비, Ⅰ·Ⅱ·Ⅲ급 비밀, 군사기밀 | Warn |
 | Payment card number | Block |
 | Private key, AWS access key, API key or token | Block |
 | JSON Web Token, password written out | Warn |
-| E-mail address, business registration number (KR) | Off |
+| E-mail address, business registration number (KR), corporate registration number (KR), landline phone number (KR) | Off |
 
 ![Data rules, own rules and the try box](images/en/11-data-rules.png)
 

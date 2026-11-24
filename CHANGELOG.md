@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0
+
+- **Korean AI services**: 14 more known services (65 in all): Upstage, A. (에이닷), Kanana, CLOVA
+  Studio, CLOVA Note, Papago, Alan, Readray (Lilys AI), Daglo, Goover, Tiro, Typecast, Vrew and
+  FriendliAI. The browser asks once to accept access to the added sites.
+- **Data rules for public bodies**: security markings (대외비, Ⅰ·Ⅱ·Ⅲ급 비밀, 군사기밀; warns by
+  default), corporate registration numbers and landline phone numbers (both off by default).
+- **Management server**: the admin page lists the connected browsers with versions and daily
+  counts; wrong admin keys are slowed down instead of locking the admin out; the server works
+  under a path prefix; the settings page warns about a plain-HTTP server address.
+- The settings page links to the commercial edition.
+
 ## 1.0.0 (first release)
 
 ### Extension

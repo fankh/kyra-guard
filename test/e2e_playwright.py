@@ -160,7 +160,7 @@ def main() -> int:
             options = context.new_page()
             options.goto(f"{origin}/options.html")
             options.wait_for_selector("#services tbody tr")
-            check(options.locator("#services tbody tr").count() == 51, "the 51 known AI services are listed")
+            check(options.locator("#services tbody tr").count() == 65, "the 65 known AI services are listed")
             check("이 브라우저에만 저장" in options.inner_text("body"), "the page says everything stays in this browser")
             check(sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") == 0, "nothing is blocked or warned yet")
             scripts = wait_until(lambda: sw.evaluate("chrome.scripting.getRegisteredContentScripts()"), message="page script")
@@ -193,11 +193,11 @@ def main() -> int:
             check("처리 시간" in options.inner_text("#error"), "a slow expression is refused")
             options.fill("#rule-name", "프로젝트 코드")
             options.select_option("#rule-type", "keyword")
-            options.fill("#rule-pattern", "대외비, apollo")
+            options.fill("#rule-pattern", "내부자료, apollo")
             options.select_option("#rule-action", "block")
             options.click("#rule-form button[type=submit]")
             options.wait_for_selector("#rules tbody tr:has-text('프로젝트 코드')")
-            options.fill("#try-text", "apollo 계획은 대외비이며 담당자 연락처는 010-1234-5678")
+            options.fill("#try-text", "apollo 계획은 내부자료이며 담당자 연락처는 010-1234-5678")
             wait_until(lambda: "차단 대상" in options.inner_text("#try-result"), message="try result")
             check(options.inner_text("#try-masked") == "[프로젝트 코드] 계획은 [프로젝트 코드]이며 담당자 연락처는 [휴대전화번호]",
                   "the try box shows what would be masked")
@@ -226,7 +226,7 @@ def main() -> int:
             wait_until(lambda: not notice(), message="notice closed")
             page.evaluate("document.getElementById('box').innerText = ''")
 
-            box.click(); page.keyboard.type("this is 대외비를 포함"); page.click("#send")
+            box.click(); page.keyboard.type("this is 내부자료를 포함"); page.click("#send")
             wait_until(notice, message="block notice for the own rule")
             check(len(sent()) == 1, "the own keyword rule blocks, with a particle attached, by the button too")
             page.keyboard.press("Escape")
@@ -290,7 +290,7 @@ def main() -> int:
             check(actions == ["blocked", "file_blocked", "proceeded", "prompt_blocked", "prompt_sent_after_warning",
                               "prompt_warned", "warned"], f"the log has each kind of event ({len(entries)} entries)")
             dumped = json.dumps(entries, ensure_ascii=False)
-            check("1234567" not in dumped and "010-1234" not in dumped and "4111" not in dumped and "대외비" not in dumped,
+            check("1234567" not in dumped and "010-1234" not in dumped and "4111" not in dumped and "내부자료" not in dumped,
                   "no message or file text is in the log")
             check(any(e.get("fileName") == "cards.csv" and e["rules"] == ["Payment card number"] for e in entries),
                   "a file entry names the file and the rule")
@@ -310,7 +310,7 @@ def main() -> int:
             print("8. the popup, and saving and loading the settings")
             popup = context.new_page()
             popup.goto(f"{origin}/popup.html")
-            wait_until(lambda: popup.inner_text("#services") == "54", message="popup")
+            wait_until(lambda: popup.inner_text("#services") == "68", message="popup")
             check(popup.inner_text("#blocked-count") == "1" and popup.inner_text("#warned-count") == "1", "the popup counts the services")
             check(popup.inner_text("#checks") == "메시지 및 파일" and "차단" in popup.inner_text("#today"), "and shows checks and today's events")
             shot(popup, "free-popup.png")
@@ -318,15 +318,15 @@ def main() -> int:
             with options.expect_download() as download:
                 options.click("#settings-export")
             saved = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
-            check(len(saved["customServices"]) == 3 and saved["customRules"][0]["pattern"] == "대외비, apollo", "the settings save to a file")
+            check(len(saved["customServices"]) == 3 and saved["customRules"][0]["pattern"] == "내부자료, apollo", "the settings save to a file")
             options.once("dialog", lambda d: d.accept())
             options.click("#settings-reset")
-            wait_until(lambda: options.locator("#services tbody tr").count() == 51, message="reset")
+            wait_until(lambda: options.locator("#services tbody tr").count() == 65, message="reset")
             wait_until(lambda: sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") == 0, message="rules removed")
             saved_path = files / "settings.json"
             saved_path.write_text(json.dumps(saved), encoding="utf-8")
             options.set_input_files("#import-file", str(saved_path))
-            wait_until(lambda: options.locator("#services tbody tr").count() == 54, message="import")
+            wait_until(lambda: options.locator("#services tbody tr").count() == 68, message="import")
             wait_until(lambda: sw.evaluate("chrome.declarativeNetRequest.getDynamicRules().then(r => r.length)") >= 3, message="rules back")
             check(True, "reset removes them and loading the file brings them back")
 
@@ -401,7 +401,7 @@ def main() -> int:
                 listed = wait_until(lambda: managed.admin("GET", "api/admin/browsers")["browsers"], message="the browser's check-in")
                 mine = listed[0]
                 check(len(listed) == 1 and mine["label"] == "QA 노트북" and mine["settingsVersion"] == state["version"]
-                      and mine["extensionVersion"] == "1.0.0" and mine["checks"] == {"prompts": True, "files": True},
+                      and mine["extensionVersion"] == manifest["version"] and mine["checks"] == {"prompts": True, "files": True},
                       "the server lists this browser with its name, versions and checks")
                 week = {key: sum(day[key] for day in mine["days"]) for key in ("blocked", "warned", "sentAfterWarning")}
                 check(week["blocked"] >= 3 and week["warned"] >= 2 and week["sentAfterWarning"] >= 2, f"with counts for the week ({week})")
@@ -483,7 +483,7 @@ def check_ungranted() -> None:
             check("Needs site access" in row.inner_text() and row.get_by_role("button", name="Grant access").count() == 1,
                   "the settings page marks the service and offers to give access")
             status = options.evaluate("chrome.runtime.sendMessage({type: 'status'})")
-            check(status["pending"] == ["custom-block-ai-test"] and status["services"] == 51 and status["counts"]["block"] == 0,
+            check(status["pending"] == ["custom-block-ai-test"] and status["services"] == 65 and status["counts"]["block"] == 0,
                   "the worker leaves it out until access is given")
             scripts = sw.evaluate("chrome.scripting.getRegisteredContentScripts()")
             check(len(scripts) == 1 and "*://*.chatgpt.com/*" in scripts[0]["matches"], "checks on the known sites still work")

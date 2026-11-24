@@ -8,13 +8,14 @@ which browsers are covered, can run the small management server in `server/`. A 
 browser downloads its settings from that server and checks in with its name, versions and daily
 counts; it never reports a site, a rule, a file name or anything typed.
 
-- **AI services**: 51 known services (ChatGPT, Claude, Gemini, Copilot, DeepSeek and others).
+- **AI services**: 65 known services (ChatGPT, Claude, Gemini, Copilot, DeepSeek and others,
+  and Korean ones such as CLOVA X, Wrtn, A., Kanana, Upstage and Papago).
   Each can be allowed, warned about (a reason is asked first) or blocked. You can add your own.
 - **Messages**: before a message is sent on an AI site it is checked against the data rules.
   A finding either blocks the message or shows a warning with three choices: edit, send with
   the finding masked, or send anyway.
 - **Files**: the text of attached text, Word, Excel and PowerPoint files is checked the same way.
-- **Data rules**: 13 built-in rules (see below) and your own keyword or regular-expression rules.
+- **Data rules**: 16 built-in rules (see below) and your own keyword or regular-expression rules.
 - **Activity log**: the last 500 events, in the browser only. It records the site and the rule
   that matched, never the text or the file. It can be saved as CSV.
 - **Management server (optional)**: a small program an organisation runs itself; every connected
@@ -41,14 +42,17 @@ There is no build step.
 | Passport number (KR) | Warn | format |
 | Driver licence number (KR) | Warn | format |
 | Mobile phone number (KR) | Warn | format |
+| Landline phone number (KR) | Off | area code and separators |
 | E-mail address | Off | format |
 | Payment card number | Block | 13 to 19 digits with a valid Luhn check digit |
 | Business registration number (KR) | Off | format and check digit |
+| Corporate registration number (KR) | Off | format and check digit |
 | Private key | Block | PEM header |
 | AWS access key | Block | format |
 | API key or token (OpenAI, GitHub, GitLab, Slack, Google) | Block | format |
 | JSON Web Token | Warn | format |
 | Password written out (`password: ...`, `비밀번호=...`) | Warn | format |
+| Security marking (KR): 대외비, Ⅰ·Ⅱ·Ⅲ급 비밀, 군사기밀 | Warn | the marking itself |
 
 Your own rules are either **keywords** (comma-separated; whole words for English, also matched
 with a particle attached for Korean, Japanese and Chinese) or a **regular expression**. An
@@ -68,7 +72,7 @@ file** reads it back. Use it to move settings between browsers or share them wit
   "customServices": [{ "name": "Internal LLM", "domains": ["llm.corp.example"], "action": "allow" }],
   "inspection": { "prompts": true, "files": true, "unscannableFiles": "warn" },
   "rules": { "email-address": "warn", "kr-mobile-phone": "block" },
-  "customRules": [{ "name": "Project names", "type": "keyword", "pattern": "apollo, 대외비", "action": "block" }],
+  "customRules": [{ "name": "Project names", "type": "keyword", "pattern": "apollo, 내부자료", "action": "block" }],
   "log": true
 }
 ```

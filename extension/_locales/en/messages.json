@@ -567,5 +567,14 @@
   },
   "optServerLabel": {
     "message": "Name of this PC or team (optional)"
+  },
+  "optCommercial": {
+    "message": "Central policy and reports, policy per user, and text recognition in images, PDF and Hangul files are in the commercial KYRA AI Guardrail."
+  },
+  "commercialLinkText": {
+    "message": "Product page and contact"
+  },
+  "commercialUrl": {
+    "message": "https://seekerslab.com/en/ai/guardrail"
   }
 }

@@ -145,7 +145,7 @@ const RULE_ERRORS = {
   slow: 'errRuleSlow', empty: 'errRuleEmpty',
 };
 const CATEGORY_KEYS = {
-  PII: 'promptCategoryPii', FINANCIAL: 'promptCategoryFinancial', CREDENTIALS: 'promptCategoryCredentials', CUSTOM: 'promptCategoryCustom',
+  PII: 'promptCategoryPii', FINANCIAL: 'promptCategoryFinancial', CREDENTIALS: 'promptCategoryCredentials', INTELLECTUAL_PROPERTY: 'promptCategoryIp', CUSTOM: 'promptCategoryCustom',
 };
 
 function renderRules() {
@@ -383,4 +383,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 setText('version', chrome.runtime.getManifest().version);
+// A plain link the person may follow; the extension itself never opens it.
+$('commercial-link').href = t('commercialUrl');
+$('commercial-link').textContent = t('commercialLinkText');
 await load();

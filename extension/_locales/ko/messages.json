@@ -567,5 +567,14 @@
   },
   "optServerLabel": {
     "message": "이 PC 또는 팀 이름 (선택)"
+  },
+  "optCommercial": {
+    "message": "중앙 정책 및 보고서, 사용자별 정책, 이미지·PDF·한글 파일 검사는 상용 KYRA AI Guardrail에서 제공합니다."
+  },
+  "commercialLinkText": {
+    "message": "제품 소개 및 문의"
+  },
+  "commercialUrl": {
+    "message": "https://seekerslab.com/ko/ai/guardrail"
   }
 }

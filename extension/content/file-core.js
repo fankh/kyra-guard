@@ -24,17 +24,26 @@
     pptx: (name) => /^ppt\/(slides\/slide\d+|notesSlides\/notesSlide\d+)\.xml$/.test(name),
   };
 
+  // Formats read by an add-on script loaded after this one (extension -> reader of the file's
+  // bytes), for editions that read more than the formats above.
+  const EXTRA_READERS = new Map();
+
+  /** Adds a format: `read(bytes)` resolves to the text, or throws when the file cannot be read. */
+  function registerReader(extensions, read) {
+    for (const extension of extensions) EXTRA_READERS.set(String(extension).toLowerCase(), read);
+  }
+
   function extensionOf(name) {
     const base = String(name || '').toLowerCase();
     const dot = base.lastIndexOf('.');
     return dot < 0 ? '' : base.slice(dot + 1);
   }
 
-  /** 'text', 'docx', 'xlsx', 'pptx' or 'unscannable'. */
+  /** 'text', 'docx', 'xlsx', 'pptx', the extension of an added format, or 'unscannable'. */
   function classify(name, mimeType, size) {
     if (typeof size === 'number' && size > MAX_FILE_BYTES) return 'unscannable';
     const ext = extensionOf(name);
-    if (OOXML_PARTS[ext]) return ext;
+    if (OOXML_PARTS[ext] || EXTRA_READERS.has(ext)) return ext;
     if (TEXT_EXTENSIONS.has(ext)) return 'text';
     const mime = String(mimeType || '').toLowerCase();
     if (!ext && (mime.startsWith('text/') || mime === 'application/json')) return 'text';
@@ -187,6 +196,8 @@
         text = new TextDecoder().decode(await file.slice(0, MAX_TEXT_CHARS * 4).arrayBuffer());
         // Binary content under a text name is not text.
         if (/\u0000/.test(text.slice(0, 4000))) return { scannable: false };
+      } else if (EXTRA_READERS.has(kind)) {
+        text = await EXTRA_READERS.get(kind)(new Uint8Array(await file.arrayBuffer()));
       } else {
         text = await ooxmlText(new Uint8Array(await file.arrayBuffer()), kind);
       }
@@ -200,5 +211,6 @@
 
   root.KyraFileCore = {
     classify, extractText, xmlToText, serverReadable, readBase64, MAX_FILE_BYTES, MAX_TEXT_CHARS,
+    registerReader, zipEntries, zipEntryBytes,
   };
 })(typeof self !== 'undefined' ? self : globalThis);

@@ -2,7 +2,7 @@
 // the text being checked is never sent anywhere. Pure functions, unit-tested in Node.
 
 export const RULE_ACTIONS = Object.freeze(['off', 'warn', 'block']);
-export const CATEGORIES = Object.freeze(['PII', 'FINANCIAL', 'CREDENTIALS', 'CUSTOM']);
+export const CATEGORIES = Object.freeze(['PII', 'FINANCIAL', 'CREDENTIALS', 'INTELLECTUAL_PROPERTY', 'CUSTOM']);
 /** Longer text is checked up to here (the page script uses the same limit). */
 export const SCAN_LIMIT = 100000;
 export const MAX_CUSTOM_RULES = 100;
@@ -42,6 +42,14 @@ export function validBusinessNumber(digits) {
   return (10 - (sum % 10)) % 10 === Number(digits[9]);
 }
 
+/** Corporate registration number (법인등록번호): 13 digits, the last one a check digit. */
+function validCorporateNumber(digits) {
+  if (digits.length !== 13) return false;
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) sum += Number(digits[i]) * (i % 2 ? 2 : 1);
+  return (10 - (sum % 10)) % 10 === Number(digits[12]);
+}
+
 /**
  * The rules that come with the extension. `action` is what a new install does; settings
  * can turn each one off or change it. Numbers are matched with "no digit before or after"
@@ -77,6 +85,12 @@ export const BUILTIN_RULES = Object.freeze([
     regex: /(?<!\d)01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}(?!\d)/g,
   },
   {
+    // Area codes (02, 031-064) and 070 numbers; a separator is asked for, to leave other numbers alone.
+    id: 'kr-landline-phone', name: 'Landline phone number (KR)', nameKo: '유선전화번호',
+    category: 'PII', action: 'off',
+    regex: /(?<!\d)0(?:2|[3-6][1-5]|70)[-.\s]\d{3,4}[-.\s]\d{4}(?!\d)/g,
+  },
+  {
     id: 'email-address', name: 'E-mail address', nameKo: '이메일 주소',
     category: 'PII', action: 'off',
     regex: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,4}(?![A-Za-z0-9-])/g,
@@ -92,6 +106,12 @@ export const BUILTIN_RULES = Object.freeze([
     category: 'FINANCIAL', action: 'off',
     regex: /(?<!\d)\d{3}-\d{2}-\d{5}(?!\d)/g,
     valid: (m) => validBusinessNumber(digitsOf(m)),
+  },
+  {
+    id: 'kr-corporate-number', name: 'Corporate registration number (KR)', nameKo: '법인등록번호',
+    category: 'FINANCIAL', action: 'off',
+    regex: /(?<!\d)\d{6}-\d{7}(?!\d)/g,
+    valid: (m) => validCorporateNumber(digitsOf(m)),
   },
   {
     id: 'private-key', name: 'Private key', nameKo: '개인 키',
@@ -117,6 +137,12 @@ export const BUILTIN_RULES = Object.freeze([
     id: 'password-assignment', name: 'Password written out', nameKo: '비밀번호 기재',
     category: 'CREDENTIALS', action: 'warn',
     regex: /(?:password|passwd|pwd|비밀번호|패스워드|암호)\s{0,3}[:=]\s{0,3}\S{6,}/gi,
+  },
+  {
+    // The markings public bodies put on documents: 대외비, and Ⅰ·Ⅱ·Ⅲ급 비밀 in any of their spellings.
+    id: 'kr-security-marking', name: 'Security marking (KR)', nameKo: '보안 등급 표시',
+    category: 'INTELLECTUAL_PROPERTY', action: 'warn',
+    regex: /대외비|(?:[ⅠⅡⅢ]|III|II|I|[1-3])\s?급\s?비밀|군사\s?기밀/g,
   },
 ]);
 
