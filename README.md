@@ -83,9 +83,20 @@ of this extension (see `extension/managed_schema.json`). The settings are then u
 and the settings page becomes read-only. On Windows, for Chrome:
 
 ```
-HKLM\Software\Policies\Google\Chrome\3rdparty\extensions\<extension id>\policy
+HKLM\Software\Policies\Google\Chrome\ExtensionInstallForcelist
+  1 (REG_SZ) = kidphjodkengcdmmpfdagohlnimmfmhb;https://clients2.google.com/service/update2/crx
+
+HKLM\Software\Policies\Google\Chrome\3rdparty\extensions\kidphjodkengcdmmpfdagohlnimmfmhb\policy
   settingsJson (REG_SZ) = {"organisation":"Acme","services":{"deepseek":"block"}}
+  serverUrl    (REG_SZ) = https://guardrail.example.com/
+  serverKey    (REG_SZ) = <enrollment key>
 ```
+
+The first key installs the extension from the Chrome Web Store and stops people removing it;
+`kidphjodkengcdmmpfdagohlnimmfmhb` is its store ID. Push either `settingsJson` or `serverUrl` and `serverKey`, not both:
+`settingsJson` wins. For Microsoft Edge use `HKLM\Software\Policies\Microsoft\Edge\...` with
+the same values; on macOS and Linux, and through Google Admin or Intune, the same names apply as
+managed preferences or a configuration profile.
 
 ### Management server
 

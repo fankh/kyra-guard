@@ -140,9 +140,18 @@
 - **브라우저 정책 예시(Windows, Chrome)**
 
 ```
-HKLM\Software\Policies\Google\Chrome\3rdparty\extensions\<확장 프로그램 ID>\policy
+HKLM\Software\Policies\Google\Chrome\ExtensionInstallForcelist
+  1 (REG_SZ) = kidphjodkengcdmmpfdagohlnimmfmhb;https://clients2.google.com/service/update2/crx
+
+HKLM\Software\Policies\Google\Chrome\3rdparty\extensions\kidphjodkengcdmmpfdagohlnimmfmhb\policy
   settingsJson (REG_SZ) = {"organisation":"Acme","services":{"deepseek":"block"}}
+  serverUrl    (REG_SZ) = https://guardrail.example.com/
+  serverKey    (REG_SZ) = <등록 키>
 ```
+
+- **강제 설치**: 첫 번째 키로 Chrome 웹 스토어에서 설치하며 사용자의 제거 불가. `kidphjodkengcdmmpfdagohlnimmfmhb`는 스토어 ID
+- **설정 배포 방식**: `settingsJson` 또는 `serverUrl`·`serverKey` 중 하나만 배포. 동시 배포 시 `settingsJson` 우선
+- **기타 환경**: Microsoft Edge는 `HKLM\Software\Policies\Microsoft\Edge\...`에 동일 값 지정. macOS, Linux, Google 관리 콘솔, Intune은 동일 이름의 관리 환경설정 또는 구성 프로필로 지정
 
 ## 9. 관리 서버
 
