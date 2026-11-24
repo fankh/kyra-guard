@@ -22,7 +22,7 @@ counts; it never reports a site, a rule, a file name or anything typed.
   with their versions and daily counts.
 - **Language**: follows the browser, or English or Korean chosen in the settings.
 
-**User guide with screenshots:** [English](docs/guide.md) · [한국어](docs/guide.ko.md) · [Changelog](CHANGELOG.md)
+**User guide with screenshots:** [English](docs/guide.md) · [한국어](docs/guide.ko.md) · [Changelog](CHANGELOG.md) · [Commercial edition](#commercial-edition)
 
 ## Install
 
@@ -179,9 +179,19 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
   administrator, or downloaded from a management server, need the same step for each own
   service (press **Grant access**).
 
-The commercial KYRA AI Guardrail adds central policy and reporting, text recognition in images
-and PDF files, per-user and per-group policy, data grade limits and change history. Its
-extension is a separate program; this one does not connect to it.
+## Commercial edition
+
+The commercial KYRA AI Guardrail, from Seekers Inc., adds central policy and reporting, text
+recognition in images and PDF files, per-user and per-group policy, data grade limits and change
+history. Its extension is a separate program; this one does not connect to it.
+
+| | |
+|---|---|
+| Product page | https://seekerslab.com/en/ai/guardrail |
+| Demo request | https://seekerslab.com/en/demo |
+| Contact | https://seekerslab.com/en/company/contact |
+| E-mail | contact@seekerslab.com |
+| Phone | +82-2-2039-8160 |
 
 ## Development
 

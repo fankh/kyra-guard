@@ -61,6 +61,8 @@ What it does not do
 
 Open source under the Apache License 2.0: https://github.com/fankh/kyra-guard
 
+Commercial edition (central policy and reporting, per-user policy, image and PDF text recognition): https://seekerslab.com/en/ai/guardrail · contact@seekerslab.com
+
 ### Korean (한국어)
 
 **이름:** KYRA AI Guardrail Free
@@ -100,6 +102,8 @@ KYRA AI Guardrail Free는 민감한 데이터가 AI 서비스로 전송되지 �
 - 적용 범위는 해당 브라우저이므로 데스크톱 앱과 다른 브라우저는 별도 대책 필요
 
 Apache License 2.0 오픈 소스: https://github.com/fankh/kyra-guard
+
+상용 버전(중앙 정책·보고서, 사용자별 정책, 이미지·PDF 텍스트 인식) 문의: https://seekerslab.com/ko/ai/guardrail · contact@seekerslab.com
 
 ## Privacy practices tab
 

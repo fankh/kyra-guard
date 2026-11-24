@@ -18,6 +18,7 @@ addresses; no real AI service appears in them.
 8. [Share settings with a team](#8-share-settings-with-a-team)
 9. [Management server](#9-management-server)
 10. [What to check before relying on it](#10-what-to-check-before-relying-on-it)
+11. [Commercial edition and contact](#11-commercial-edition-and-contact)
 
 ## 1. What it does
 
@@ -282,3 +283,23 @@ counts are sent. The server keeps the last check-in of each browser and no netwo
 - **The list of browsers is what each browser says about itself.** A name is whatever was typed.
 - **Sites differ.** Sending is recognised by the Enter key and by send buttons. Check it on the
   AI sites you use.
+
+## 11. Commercial edition and contact
+
+The commercial KYRA AI Guardrail, from Seekers Inc., is for organizations that need more than
+this edition offers:
+
+- central policy and a central activity log with reports;
+- policy per user and per group;
+- text recognition in images and PDF files;
+- data grade limits and change history.
+
+Its extension is a separate program; this one does not connect to it.
+
+| | |
+|---|---|
+| Product page | https://seekerslab.com/en/ai/guardrail |
+| Demo request | https://seekerslab.com/en/demo |
+| Contact | https://seekerslab.com/en/company/contact |
+| E-mail | contact@seekerslab.com |
+| Phone | +82-2-2039-8160 |
