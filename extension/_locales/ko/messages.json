@@ -6,7 +6,7 @@
     "message": "KYRA AI Guardrail Free"
   },
   "extDescription": {
-    "message": "AI 서비스를 경고하거나 차단하고, 보내는 내용에 개인정보와 키가 있는지 검사합니다. 모든 처리는 이 브라우저 안에서 이루어집니다."
+    "message": "AI 서비스를 경고하거나 차단하고, 보내는 내용에 개인정보와 키가 있는지 검사합니다. 입력 내용은 외부로 전송하지 않습니다."
   },
   "yourCompany": {
     "message": "이 브라우저에 설정된 AI 정책"
@@ -566,6 +566,6 @@
     "message": "HTTPS 주소가 아니므로 설정과 등록 키가 네트워크에서 노출될 수 있습니다."
   },
   "optServerLabel": {
-    "message": "이 브라우저의 이름 (선택)"
+    "message": "이 PC 또는 팀 이름 (선택)"
   }
 }

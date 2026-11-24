@@ -57,7 +57,7 @@ TEXT = {
         "warn": "Please call Ms. Kim back on 010-1234-5678 about the renewal.",
         "block": "Customer Kim Minsu, resident number 900101-1234567, asked for a refund.",
         "org": "Acme", "rule": "Project names", "keywords": "apollo, confidential",
-        "tagline": "Keep personal data and keys out of AI chats", "sub": "Checked in your browser. Nothing is sent anywhere.",
+        "tagline": "Keep personal data and keys out of AI chats", "sub": "Checked in your browser. What you type is never sent.",
     },
     "ko": {
         "locale": "ko-KR", "lang": "ko", "q": "이 고객 메모를 정리해 줄 수 있나요?",
@@ -65,7 +65,7 @@ TEXT = {
         "warn": "김 과장님께 010-1234-5678 번호로 갱신 건 회신 부탁드립니다.",
         "block": "고객 김민수, 주민등록번호 900101-1234567, 환불 요청 건입니다.",
         "org": "Acme", "rule": "프로젝트 이름", "keywords": "apollo, 대외비",
-        "tagline": "AI 대화에 개인정보와 키가 들어가지 않도록", "sub": "브라우저 안에서 검사. 외부 전송 없음.",
+        "tagline": "AI 대화에 개인정보와 키가 들어가지 않도록", "sub": "브라우저 안에서 검사. 입력 내용 외부 전송 없음.",
     },
 }
 
@@ -81,7 +81,7 @@ TILE = """<!doctype html><meta charset="utf-8">
 </style>
 <div class="brand"><img src="__ICON__" alt="">KYRA AI Guardrail Free</div>
 <h1>Keep personal data and keys out of AI chats</h1>
-<p>Checked in your browser. Nothing is sent anywhere.</p>"""
+<p>Checked in your browser. What you type is never sent.</p>"""
 
 STATE = {"page": ""}
 

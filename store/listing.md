@@ -26,7 +26,7 @@ Regenerate the images with `python scripts/store_screenshots.py`.
 **Name:** KYRA AI Guardrail Free
 
 **Summary (132 characters at most):**
-Checks what you send to AI chats for personal data and keys, in your browser. Warn, mask or block. Nothing is sent anywhere.
+Checks what you send to AI chats for personal data and keys, in your browser. Warn, mask or block. What you type is never sent.
 
 **Description:**
 
@@ -66,7 +66,7 @@ Open source under the Apache License 2.0: https://github.com/fankh/kyra-guard
 **이름:** KYRA AI Guardrail Free
 
 **요약 (132자 이내):**
-AI 대화로 보내는 내용의 개인정보와 키를 브라우저 안에서 검사. 경고, 마스킹 또는 차단. 외부 전송 없음.
+AI 대화로 보내는 내용의 개인정보와 키를 브라우저 안에서 검사. 경고, 마스킹 또는 차단. 입력 내용 외부 전송 없음.
 
 **설명:**
 

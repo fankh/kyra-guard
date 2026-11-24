@@ -6,7 +6,7 @@
     "message": "KYRA AI Guardrail Free"
   },
   "extDescription": {
-    "message": "Warns about or blocks AI services and checks what you send to them for personal data and keys. Everything stays in this browser."
+    "message": "Warns about or blocks AI services and checks what you send to them for personal data and keys. What you type is never sent."
   },
   "yourCompany": {
     "message": "the AI policy set in this browser"
@@ -566,6 +566,6 @@
     "message": "This address is not HTTPS: the settings and the enrollment key can be read on the network."
   },
   "optServerLabel": {
-    "message": "Name of this browser (optional)"
+    "message": "Name of this PC or team (optional)"
   }
 }

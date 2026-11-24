@@ -13,7 +13,7 @@
     },
     "deviceLabel": {
       "title": "Name of this browser",
-      "description": "The name this browser has in the management server's list, for example a PC name or a person's name. Optional.",
+      "description": "The name this browser has in the management server's list, for example a PC or team name. Do not use a person's name. Optional.",
       "type": "string"
     },
     "serverKey": {
