@@ -193,7 +193,9 @@ The first start prints the **admin key** once. Keep it somewhere safe. To make a
 `node server/server.js --reset-admin-key`.
 
 Put the server behind HTTPS (a reverse proxy with a certificate) for anything beyond a trial.
-Over plain HTTP the settings and the enrollment key can be read on the network.
+The extension refuses a plain HTTP address on another machine, because the settings and the
+enrollment key could be read and changed on the network. Plain HTTP to the same machine is
+accepted for a trial.
 
 ### Set the settings
 
@@ -235,8 +237,8 @@ Once connected, the settings come from the server and the page is read-only.
 - **Disconnect** returns to this browser's own settings.
 - With browser management, push the address and key as the `serverUrl` and `serverKey` policy
   values instead, and the name as `deviceLabel`. A person then cannot disconnect.
-- The page warns when the server address is plain HTTP to another machine, because the settings
-  and the enrollment key can then be read on the network.
+- A plain HTTP server address on another machine is refused, because the settings and the
+  enrollment key could be read and changed on the network.
 
 ### What a connected browser does
 
@@ -252,7 +254,7 @@ Once connected, the settings come from the server and the page is read-only.
 
 | Sent at each check-in | Never sent |
 |---|---|
-| The name given to the browser (optional) and a random browser id | Sites visited or used |
+| The name given to the browser (optional), a random browser id and a random secret | Sites visited or used |
 | Extension version and the version of the settings in force | Which rule matched |
 | Whether the message check and the file check are on | File names |
 | How many own services still wait for site access | The reason typed on a warning page |
@@ -260,6 +262,7 @@ Once connected, the settings come from the server and the page is read-only.
 
 The counts come from the browser's own activity log, which keeps 500 events; with the log off no
 counts are sent. The server keeps the last check-in of each browser and no network address.
+It keeps only a hash of the secret, and takes later check-ins for that id only with the same secret.
 
 ### Running it for real
 
@@ -268,12 +271,19 @@ counts are sent. The server keeps the last check-in of each browser and no netwo
   admin page with the trailing slash and give browsers that same address.
 - Wrong admin keys are slowed down after the tenth from one address; the right key is never
   locked out.
+- The admin page does not send the admin key over plain HTTP to another machine, and the server
+  warns at start when it listens beyond the machine it runs on.
+- At most 1,000 new browsers are taken an hour; a browser refused waits for its next check.
+- Every connected browser receives the whole settings, own rules included, because the checks run
+  in the browser. Keep secrets out of rules.
 - Back up the `state.json` file in the data folder. It holds the settings, the enrollment key
   and the list of browsers.
 
 ## 10. What to check before relying on it
 
-- **Images and PDF files are not read.** Choose what happens to files that cannot be read.
+- **Images and PDF files are not read.** Neither are archives, other formats, files over 20 MB or
+  files with more than 1,000,000 characters of text. Choose what happens to files that cannot be
+  read; a new install warns.
 - **Only the browser is covered.** Desktop AI apps, command-line tools and other browsers are not.
 - **A person can remove the extension or disconnect** unless an administrator force-installs it
   and pushes the settings or the server address through browser policy.
@@ -284,6 +294,10 @@ counts are sent. The server keeps the last check-in of each browser and no netwo
 - **The list of browsers is what each browser says about itself.** A name is whatever was typed.
 - **Sites differ.** Sending is recognised by the Enter key and by send buttons. Check it on the
   AI sites you use.
+- **Hidden text.** The rules run on the text after a basic cleanup (invisible characters,
+  full-width digits, spaces between characters); a value disguised in other ways may still pass.
+- **Settings are not secret.** Every connected browser receives the whole settings, own rules
+  included. Keep secrets out of rules.
 
 ## 11. Commercial edition and contact
 

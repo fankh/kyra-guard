@@ -58,6 +58,7 @@ const TEXT = {
     errTooMany: 'Too many wrong attempts. Check the admin key and try again.',
     errJson: 'The document is not valid JSON.',
     errServer: 'The server did not accept the request.',
+    errInsecure: 'This page was opened over plain HTTP from another machine, so the admin key would cross the network unprotected. Open it through the HTTPS address of the reverse proxy, or on the server itself.',
   },
   ko: {
     title: 'KYRA AI Guardrail Free: 관리 서버',
@@ -115,6 +116,7 @@ const TEXT = {
     errTooMany: '잘못된 시도가 많습니다. 관리자 키를 확인한 후 다시 시도하십시오.',
     errJson: '문서가 올바른 JSON 형식이 아닙니다.',
     errServer: '서버에서 요청이 승인되지 않았습니다.',
+    errInsecure: '다른 컴퓨터에서 암호화되지 않은 HTTP로 연 페이지로, 관리자 키가 보호 없이 네트워크로 전송될 수 있습니다. 리버스 프록시의 HTTPS 주소 또는 서버 컴퓨터에서 여십시오.',
   },
 };
 
@@ -136,6 +138,11 @@ function showError(text) {
 
 /** Calls the admin API with the key of this tab; null when the call was refused. */
 async function call(method, path, body) {
+  // The key is never sent where anyone on the network could read it.
+  if (location.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+    showError(t('errInsecure'));
+    return null;
+  }
   // Relative to the page, so the server also works behind a reverse proxy under a path prefix.
   const response = await fetch(new URL(path, document.baseURI), {
     method,

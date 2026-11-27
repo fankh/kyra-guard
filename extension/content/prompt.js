@@ -21,8 +21,13 @@
   self.kyraPromptInspection = true;
 
   const t = (key, substitutions) => chrome.i18n.getMessage(key, substitutions) || key;
-  const SCAN_LIMIT = 100000; // the server's limit; longer text is checked up to here
+  const SCAN_LIMIT = 100000; // the server's limit per check; longer text is checked in pieces of this size
+  const PIECE_OVERLAP = 2000; // pieces overlap, so what lies across a cut is still found whole
+  const MAX_PROMPT_CHARS = 1000000; // a longer message is not sent: it is too long to check
   const MAX_FILES = 20; // per attach, drop or paste
+  const ANSWER_TIMEOUT_MS = 60000; // the worker's own checks give up well before this
+  // No answer from the worker: the user is warned and may still send, never let through unasked.
+  const UNCHECKED = Object.freeze({ action: 'warn', findings: [], unchecked: true });
 
   let lastEditable = null; // where the user last typed, for clicks on a send button
   let replaying = false; // our own replayed event: let it through
@@ -33,13 +38,30 @@
   let images = false; // images and PDFs are sent for KYRA to read only when the company asks for it
   let imageMaxBytes = 8 * 1024 * 1024;
 
+  /**
+   * A script left behind when the extension was updated or reloaded under this page. It steps
+   * aside: the new copy, put on open tabs by the worker, checks instead.
+   */
+  const orphaned = () => !chrome.runtime?.id;
+
+  /** The worker's answer, or null when it did not answer (in time). */
   async function message(body) {
+    let timer;
     try {
-      return await chrome.runtime.sendMessage(body);
+      return await Promise.race([
+        chrome.runtime.sendMessage(body),
+        new Promise((done) => { timer = setTimeout(() => done(null), ANSWER_TIMEOUT_MS); }),
+      ]);
     } catch {
-      // The extension was reloaded or updated under this page: do not strand the user.
       return null;
+    } finally {
+      clearTimeout(timer);
     }
+  }
+
+  /** The answer to a check; no answer counts as unchecked. */
+  async function scan(body) {
+    return (await message(body)) || UNCHECKED;
   }
 
   message({ type: 'inspectionSettings' }).then((settings) => {
@@ -104,15 +126,17 @@
   }, true);
 
   window.addEventListener('keydown', (event) => {
-    if (replaying || !prompts || !core.isSubmitKey(event)) return;
+    if (replaying || !prompts || orphaned() || !core.isSubmitKey(event)) return;
     const editable = core.editableFrom(event.target);
     if (!editable) return;
     lastEditable = editable;
-    hold(event, editable, () => replayKey(editable, event));
+    const resend = () => replayKey(editable, event);
+    resend.byKey = true;
+    hold(event, editable, resend);
   }, true);
 
   window.addEventListener('click', (event) => {
-    if (replaying || !prompts) return;
+    if (replaying || !prompts || orphaned()) return;
     const button = core.submitButtonFrom(event.target);
     if (!button || !lastEditable || !lastEditable.isConnected) return;
     hold(event, lastEditable, () => button.click());
@@ -133,9 +157,55 @@
     check(text, editable, resend);
   }
 
+  /** The text in pieces of at most SCAN_LIMIT characters, each overlapping the one before. */
+  function pieces(text) {
+    const out = [];
+    for (let start = 0; ; start += SCAN_LIMIT - PIECE_OVERLAP) {
+      out.push(text.slice(start, start + SCAN_LIMIT));
+      if (start + SCAN_LIMIT >= text.length) return out;
+    }
+  }
+
+  const STRICTNESS = { allow: 0, warn: 1, block: 2 };
+
+  /**
+   * Checks every piece of the text. The strictest answer wins and the findings of all pieces
+   * are put together; `proceedWith` is the first piece that was warned about, the one asked
+   * about again when the user sends anyway.
+   */
+  async function askAll(type, fields, text) {
+    const parts = pieces(text);
+    const responses = [];
+    for (const part of parts) {
+      responses.push(await scan({ type, ...fields, content: part, proceed: false }));
+    }
+    const actions = responses.map((response) => core.decide(response));
+    const strictest = actions.reduce((a, b) => (STRICTNESS[b] > STRICTNESS[a] ? b : a), 'allow');
+    const findings = [];
+    const named = new Set();
+    for (const finding of responses.flatMap((r) => (Array.isArray(r.findings) ? r.findings : []))) {
+      const key = `${finding.category}\u0000${finding.name}`;
+      if (!named.has(key)) {
+        named.add(key);
+        findings.push(finding);
+      }
+    }
+    return {
+      action: strictest,
+      findings,
+      companyName: responses.map((r) => r.companyName).find(Boolean),
+      unavailable: responses.some((r, i) => actions[i] === strictest && r.unavailable),
+      unchecked: responses.some((r, i) => actions[i] === strictest && r.unchecked),
+      mustMask: responses.some((r) => r.mustMask === true),
+      // Masked text covers one piece only: offered only when the text is a single piece.
+      maskedContent: parts.length === 1 ? responses[0].maskedContent : null,
+      parts,
+      proceedWith: actions.indexOf('warn'),
+    };
+  }
+
   async function ask(text, proceed, masked = false) {
-    return (await message({ type: 'scanPrompt', content: text.slice(0, SCAN_LIMIT), proceed, masked }))
-      || { action: 'allow' };
+    return scan({ type: 'scanPrompt', content: text.slice(0, SCAN_LIMIT), proceed, masked });
   }
 
   /** Puts `value` in the text box the way typing would, so the page's own code notices. True if it took. */
@@ -161,10 +231,18 @@
   }
 
   async function check(text, editable, resend) {
+    if (text.length > MAX_PROMPT_CHARS) {
+      await dialog({
+        title: t('promptTooLongTitle'), body: t('promptTooLongBody', [String(MAX_PROMPT_CHARS)]), lines: [], note: '',
+        back: t('promptEdit'), proceed: null, mask: null,
+      });
+      if (editable.isConnected) editable.focus();
+      return;
+    }
     busy = true;
     let response;
     try {
-      response = await ask(text, false);
+      response = await askAll('scanPrompt', { masked: false }, text);
     } finally {
       busy = false;
     }
@@ -179,10 +257,10 @@
       && response.maskedContent && text.length <= SCAN_LIMIT ? response.maskedContent : null;
     const mustMask = action === 'warn' && response.mustMask === true;
     const choice = await dialog({
-      title: t(response.unavailable ? 'promptUnavailableTitle'
-        : action === 'block' ? 'promptBlockedTitle' : 'promptWarnTitle'),
-      body: response.unavailable ? t('promptUnavailableBody', [company])
-        : t(action === 'block' ? 'promptBlockedBody' : 'promptWarnBody', [company]),
+      title: t(response.unavailable ? 'promptUnavailableTitle' : action === 'block' ? 'promptBlockedTitle'
+        : response.unchecked ? 'promptUncheckedTitle' : 'promptWarnTitle'),
+      body: response.unavailable ? t('promptUnavailableBody', [company]) : action === 'block' ? t('promptBlockedBody', [company])
+        : response.unchecked ? t('promptUncheckedBody') : t('promptWarnBody', [company]),
       lines: findingLines(response.findings),
       note: t(action !== 'warn' ? 'promptBlockedNote' : mustMask ? 'promptMustMaskNote' : 'promptWarnNote'),
       back: t('promptEdit'),
@@ -190,7 +268,7 @@
       mask: maskedText ? t('promptMaskAndSend') : null,
     });
     if (action === 'warn' && choice === 'send') {
-      await ask(text, true); // recorded as sent after the warning
+      await ask(response.parts[response.proceedWith], true); // checked again, and recorded as sent after the warning
       send(text, editable, resend);
     } else if (choice === 'mask' && maskedText && editable.isConnected) {
       if (!setText(editable, maskedText)) {
@@ -214,10 +292,12 @@
     cleared = text;
     replay(resend);
     // A replayed key does not trigger the browser's own form submission, so if the text
-    // is still there, press the send button (or submit the form) instead.
+    // is still there, press the send button (or submit the form) instead. Only for a key: a
+    // replayed click did what the button does, and the button may not be one that sends
+    // (Save, on a page with a draft in the text box).
     setTimeout(() => {
       cleared = null;
-      if (!editable.isConnected || core.readText(editable) !== text) return;
+      if (!resend.byKey || !editable.isConnected || core.readText(editable) !== text) return;
       const form = editable.closest('form');
       const button = (form || document).querySelector(
         'button[data-testid*="send" i], button[aria-label*="send" i], button[type="submit"]');
@@ -251,12 +331,12 @@
 
   // A file input fires "input" and then "change"; the page must see neither until the check is done.
   window.addEventListener('input', (event) => {
-    if (!replaying && files && isFileInput(event.target) && event.target.files?.length) stop(event);
+    if (!replaying && files && !orphaned() && isFileInput(event.target) && event.target.files?.length) stop(event);
   }, true);
 
   window.addEventListener('change', (event) => {
     const input = event.target;
-    if (replaying || !files || !isFileInput(input)) return;
+    if (replaying || !files || orphaned() || !isFileInput(input)) return;
     const list = [...(input.files || [])];
     if (!list.length) return;
     stop(event);
@@ -269,7 +349,7 @@
   }, true);
 
   window.addEventListener('drop', (event) => {
-    if (replaying || !files) return;
+    if (replaying || !files || orphaned()) return;
     const list = [...(event.dataTransfer?.files || [])];
     if (!list.length) return;
     stop(event);
@@ -282,7 +362,7 @@
   }, true);
 
   window.addEventListener('paste', (event) => {
-    if (replaying || !files) return;
+    if (replaying || !files || orphaned()) return;
     const list = [...(event.clipboardData?.files || [])];
     if (!list.length) return;
     const text = event.clipboardData.getData('text/plain');
@@ -295,16 +375,23 @@
     });
   }, true);
 
-  function askFile(file, extracted, proceed) {
-    return message({
+  /** Asks about a file that cannot be read here, or about one piece of a file's text. */
+  function askFile(file, extracted, proceed, piece = '') {
+    return scan({
       type: 'scanFile', fileName: file.name, proceed,
       unscannable: !extracted.scannable,
       // Why it cannot be inspected, when that is known (an edition that looks for it).
       ...(extracted.reason ? { reason: extracted.reason } : {}),
-      content: extracted.scannable ? extracted.text : '',
+      content: extracted.scannable ? piece : '',
       // An image or PDF: KYRA reads its text. An older server ignores the bytes.
       ...(extracted.bytes ? { contentBase64: extracted.bytes } : {}),
     });
+  }
+
+  /** The answer for one file: its text checked piece by piece, or the file asked about as it is. */
+  async function scanFile(file, extracted) {
+    if (!extracted.scannable) return askFile(file, extracted, false);
+    return askAll('scanFile', { fileName: file.name, unscannable: false }, extracted.text);
   }
 
   /** Reads the file's text here, or its bytes for KYRA to read when it is an image or a PDF. */
@@ -347,7 +434,7 @@
     const results = [];
     for (const file of list) {
       const extracted = await extractFile(file);
-      const response = (await askFile(file, extracted, false)) || { action: 'allow' };
+      const response = await scanFile(file, extracted);
       results.push({ file, extracted, response, action: core.decide(response) });
     }
     const stopped = results.filter((r) => r.action === 'block');
@@ -364,7 +451,7 @@
       body: t(action === 'block' ? 'fileBlockedBody' : 'fileWarnBody', [company]),
       lines: shown.map((r) => ({
         strong: r.file.name,
-        rest: r.response.unavailable ? t('fileUnavailable')
+        rest: r.response.unavailable || r.response.unchecked ? t('fileUnavailable')
           : notInspected(r) ? notInspectedText(r.extracted)
             : findingLines(r.response.findings).map((line) => line.strong + (line.rest ? ` (${line.rest})` : '')).join(', '),
       })),
@@ -373,7 +460,9 @@
       proceed: action === 'warn' ? t('fileSendAnyway') : null,
     });
     if (action === 'warn' && choice === 'send') {
-      for (const r of warned) await askFile(r.file, r.extracted, true); // recorded
+      for (const r of warned) { // checked again, and recorded
+        await askFile(r.file, r.extracted, true, r.extracted.scannable ? r.response.parts[r.response.proceedWith] : '');
+      }
       replay(deliver);
     }
   }

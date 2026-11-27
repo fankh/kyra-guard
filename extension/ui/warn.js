@@ -12,10 +12,15 @@ localize();
 
 const { serviceId, host, url } = parseRedirectParams(location.href);
 const target = continueUrl(url, host);
-const { companyName, service } = await lookupService(serviceId, host);
+// Only ever shown as a whole tab (the warning is for top-level navigations): inside another
+// site's frame the page could be covered up to steer the user's clicks, so it shows nothing.
+const framed = window.top !== window;
+const { companyName, service } = framed ? {} : await lookupService(serviceId, host);
 
-// The policy may have changed since the redirect; an allowed service needs no warning.
-if (service?.action === 'allow' && target) {
+if (framed) {
+  document.body.replaceChildren();
+} else if (service?.action === 'allow' && target) {
+  // The policy may have changed since the redirect; an allowed service needs no warning.
   location.replace(target);
 } else {
   render();

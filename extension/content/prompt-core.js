@@ -3,7 +3,8 @@
 // global and prompt.js, loaded after it, uses that.
 
 (function (root) {
-  const SEND_WORDS = /send|submit|보내기|전송/i;
+  // "Save" is the send button when an earlier message is edited.
+  const SEND_WORDS = /send|submit|save|보내기|전송|저장/i;
   const NOT_SEND_WORDS = /stop|cancel|attach|upload|voice|dictat|microphone|중지|취소|첨부|음성/i;
   const TEXT_INPUT_TYPES = new Set(['', 'text', 'search']);
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.1.1 (security fixes)
+
+- **Long messages and files are checked in full.** Text past the first 100,000 characters used to
+  be sent unchecked; it is now checked in overlapping pieces. A message over 1,000,000 characters
+  is not sent, and a file over 20 MB or with more text than that counts as one that cannot be
+  checked.
+- **Files that cannot be checked are warned about by default** on a new install (images, PDF,
+  archives, other formats). Settings saved before keep their choice.
+- **Own rules that can freeze the checks are refused**: a repeated group holding a repeat, such as
+  `(a+)+`, and expressions found slow on text built from all of their characters (the trial used
+  only the first six).
+- **The management server must use HTTPS**, except on the same machine. A plain-HTTP address to
+  another machine is refused, since the settings and the enrollment key could be read and changed
+  on the network; settings downloaded before stay in force.
+- **Hidden values are found**: a value with an invisible (zero-width) character in it, written in
+  full-width digits, or typed with spaces between its characters is checked as if written plainly.
+- **Chat boxes inside frames are checked**, also on a site that is not an AI service, and a
+  "Save" button (editing an earlier message) counts as sending. When the extension does not
+  answer within 60 seconds, a message or file is held with a warning instead of being let through.
+- **The blocked and warning pages can no longer be opened by other sites.** The warning page
+  shows nothing inside a frame, and reports from a framed page are ignored.
+- **Management server**:
+  - each browser sends a secret of its own, so nobody else can check in under its id;
+  - at most 1,000 new browsers an hour are taken, and check-ins are written to disk together;
+  - the admin page does not send the admin key over plain HTTP to another machine;
+  - the server warns at start when it listens beyond the machine it runs on;
+  - the table of wrong admin keys keeps its size limit without being emptied.
+
 ## 1.1.0
 
 - **Korean AI services**: 14 more known services (65 in all): Upstage, A. (에이닷), Kanana, CLOVA

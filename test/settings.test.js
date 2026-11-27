@@ -18,6 +18,7 @@ describe('settings', () => {
   it('start with every known service allowed and both checks on', () => {
     const settings = defaultSettings();
     assert.deepEqual(normalizeSettings(settings), settings);
+    assert.equal(settings.inspection.unscannableFiles, 'warn', 'a file that cannot be checked is not let through silently');
     const policy = parsePolicy(toPolicyJson(settings));
     assert.equal(policy.services.length, CATALOG.length);
     assert.ok(policy.services.every((s) => s.action === 'allow'));
@@ -53,7 +54,7 @@ describe('settings', () => {
     assert.deepEqual(settings.customServices, [
       { id: 'custom-llm-corp-example', name: 'Internal LLM', domains: ['llm.corp.example', 'chat.corp.example'], action: 'allow' },
     ]);
-    assert.deepEqual(settings.inspection, { prompts: false, files: true, unscannableFiles: 'allow' });
+    assert.deepEqual(settings.inspection, { prompts: false, files: true, unscannableFiles: 'warn' });
     assert.deepEqual(settings.rules, { 'payment-card': 'warn' });
     assert.deepEqual(settings.customRules, [{ id: 'custom-1', name: 'Project', type: 'regex', pattern: 'PRJ-\\d{4}', action: 'block' }]);
     assert.equal(settings.log, true);

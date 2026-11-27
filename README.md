@@ -114,7 +114,7 @@ node server/server.js
 | Setting | Default | Meaning |
 |---|---|---|
 | `PORT` | `8787` | Port to listen on |
-| `HOST` | `127.0.0.1` | Address to listen on; set it to reach the server from other machines |
+| `HOST` | `127.0.0.1` | Address to listen on; set it to reach the server from other machines, behind an HTTPS reverse proxy |
 | `KYRA_DATA_DIR` | `./data` | Folder for `state.json`, the one file the server keeps |
 
 1. The first start prints the **admin key** once. Keep it; `node server/server.js --reset-admin-key`
@@ -151,10 +151,12 @@ What a connected browser does:
 - Settings pushed as `settingsJson` through browser policy win over the server.
 
 Put the server behind HTTPS (a reverse proxy with a certificate) for anything beyond a trial:
-over plain HTTP the settings and the enrollment key can be read on the network. The admin key
-is stored only as a hash. Wrong admin keys are slowed down after the tenth from one address;
-the right key is never locked out. The settings page warns when the server address is plain
-HTTP to another machine.
+the extension refuses a plain HTTP address on another machine, because the settings and the
+enrollment key could be read and changed on the network (plain HTTP to the same machine, such as
+`http://127.0.0.1:8787/`, is accepted for a trial). The admin key is stored only as a hash. Wrong
+admin keys are slowed down after the tenth from one address; the right key is never locked out.
+The admin page does not send the admin key over plain HTTP to another machine, and the server
+warns at start when it listens beyond the machine it runs on.
 
 Behind a reverse proxy the server may sit under a path prefix (for example
 `https://example.com/kyra/`); open the admin page with the trailing slash and give browsers
@@ -164,8 +166,9 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## What to check before relying on it
 
-- **Images and PDF files are not read.** Choose what happens to files that cannot be read
-  (allow, warn or block) in the settings.
+- **Images and PDF files are not read.** Neither are archives, other formats, files over 20 MB
+  or files with more than 1,000,000 characters of text. Choose what happens to files that cannot
+  be read (allow, warn or block) in the settings; a new install warns.
 - **A person can change or remove it** unless an administrator force-installs it and pushes the
   settings through browser policy.
 - **Only the browser is covered.** Desktop AI apps, command-line tools and other browsers are not.
@@ -174,7 +177,12 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 - **The management server is one set of settings for everyone.** It has no users, groups or
   change history, and a person can disconnect unless the address is pushed through browser policy.
 - **The list of browsers is what each browser says about itself.** A name is whatever was typed,
-  and anyone with the enrollment key can check in.
+  and anyone with the enrollment key can add a browser (at most 1,000 new ones an hour). Each
+  browser sends a secret of its own, so nobody can write over another browser's line.
+- **Every connected browser receives the whole settings**, own rules included, because the checks
+  run in the browser. Anyone with the enrollment key can read them, so keep secrets out of rules.
+- **Hidden text.** The rules run on the text after a basic cleanup (invisible characters,
+  full-width digits, spaces between characters); a value disguised in other ways may still pass.
 - **Sites differ.** Sending is recognised by the Enter key and by send buttons. It was tested
   against a stand-in chat page; check it on the AI sites you use.
 - **Site access.** At install the extension has access to the known AI services only. When you

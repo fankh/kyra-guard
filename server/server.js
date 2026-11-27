@@ -30,6 +30,12 @@ const MAX_COUNT = 100000;
 const FREE_WRONG_KEYS = 10;
 const WRONG_KEY_WINDOW_MS = 10 * 60 * 1000;
 const WRONG_KEY_DELAY_MS = 2000;
+const MAX_TRACKED_ADDRESSES = 10000;
+// Browsers seen for the first time, across all addresses (behind a reverse proxy every browser
+// has the same address, so a limit per address would hold up a whole organisation).
+const NEW_BROWSERS_PER_HOUR = 1000;
+// Check-ins are written to disk together, at most this often.
+const SAVE_DELAY_MS = 1000;
 const STATIC = Object.freeze({
   '/': ['admin.html', 'text/html; charset=utf-8'],
   '/admin.js': ['admin.js', 'text/javascript; charset=utf-8'],
@@ -55,6 +61,12 @@ function openStore(dataDir) {
     writeFileSync(temporary, JSON.stringify(state, null, 2), { mode: 0o600 });
     renameSync(temporary, file);
   };
+  let timer = null;
+  const flush = () => {
+    clearTimeout(timer);
+    timer = null;
+    save();
+  };
   let firstAdminKey = null;
   if (!state) {
     firstAdminKey = newKey();
@@ -69,7 +81,16 @@ function openStore(dataDir) {
     get: () => state,
     update(changes) {
       state = { ...state, ...changes };
-      save();
+      flush();
+    },
+    /** Like update, but written a moment later together with others: for check-ins, which come often. */
+    updateSoon(changes) {
+      state = { ...state, ...changes };
+      timer ??= setTimeout(flush, SAVE_DELAY_MS);
+      timer.unref?.();
+    },
+    flush: () => {
+      if (timer) flush();
     },
   };
 }
@@ -130,6 +151,7 @@ const count = (value) => Math.min(MAX_COUNT, Math.max(0, Math.trunc(Number(value
 /** A check-in with only the fields the server keeps, or null when it is not one. */
 function cleanCheckIn(body) {
   if (!body || typeof body !== 'object' || typeof body.id !== 'string' || !/^[\w-]{8,64}$/.test(body.id)) return null;
+  if (body.secret !== undefined && (typeof body.secret !== 'string' || !/^[\w-]{16,128}$/.test(body.secret))) return null;
   const days = Array.isArray(body.days) ? body.days.slice(-CHECKIN_DAYS)
     .filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d.day))
     .map((d) => ({ day: d.day, blocked: count(d.blocked), warned: count(d.warned), sentAfterWarning: count(d.sentAfterWarning) })) : null;
@@ -141,21 +163,51 @@ function cleanCheckIn(body) {
     checks: { prompts: body.checks?.prompts === true, files: body.checks?.files === true },
     pendingAccess: count(body.pendingAccess),
     days,
+    secret: body.secret,
   };
 }
+
+/** A browser as the admin page sees it: without the hash of its secret. */
+const listed = ({ secretHash, ...browser }) => browser;
 
 const bearer = (req) => /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1] ?? '';
 
 /**
+ * Counts wrong admin keys per address. The table has a size limit, so a flood of addresses
+ * cannot grow it for ever, and it is never emptied at once: when full, expired entries go
+ * first, then the ones not heard from the longest. An address keeps guessing moves to the end.
+ *
+ * @returns {(address: string, now?: number) => number} notes one wrong key, returns the count in the window
+ */
+export function wrongKeyTable({ limit = MAX_TRACKED_ADDRESSES, windowMs = WRONG_KEY_WINDOW_MS } = {}) {
+  const failed = new Map(); // address -> { count, until }, oldest first
+  return (address, now = Date.now()) => {
+    const entry = failed.get(address);
+    const count = entry && entry.until > now ? entry.count + 1 : 1;
+    failed.delete(address);
+    if (failed.size >= limit) {
+      for (const [known, held] of failed) if (held.until <= now) failed.delete(known);
+      for (const known of failed.keys()) {
+        if (failed.size < limit) break;
+        failed.delete(known);
+      }
+    }
+    failed.set(address, { count, until: now + windowMs });
+    return count;
+  };
+}
+
+/**
  * The server, not yet listening.
  *
- * @param {{dataDir: string, wrongKeyDelayMs?: number}} options where state.json is kept
+ * @param {{dataDir: string, wrongKeyDelayMs?: number, newBrowsersPerHour?: number}} options where state.json is kept
  * @returns {{server: import('node:http').Server, firstAdminKey: string|null}} the admin key
  *   is returned only when this call created the state, so it can be shown once
  */
-export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DELAY_MS }) {
+export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DELAY_MS, newBrowsersPerHour = NEW_BROWSERS_PER_HOUR }) {
   const store = openStore(resolve(dataDir));
-  const failed = new Map(); // address -> { count, until }
+  const noteWrongKey = wrongKeyTable();
+  let newBrowsers = { hour: 0, count: 0 };
 
   /**
    * The right admin key is always accepted, so nobody can lock the admin out by sending
@@ -165,11 +217,7 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
   async function adminAllowed(req, res) {
     const key = bearer(req);
     if (key && sameText(sha256(key), store.get().adminKeyHash)) return true;
-    const address = req.socket.remoteAddress ?? '';
-    const entry = failed.get(address);
-    const count = entry && entry.until > Date.now() ? entry.count + 1 : 1;
-    failed.set(address, { count, until: Date.now() + WRONG_KEY_WINDOW_MS });
-    if (failed.size > 10000) failed.clear(); // a flood of addresses must not grow the table for ever
+    const count = noteWrongKey(req.socket.remoteAddress ?? '');
     if (count > FREE_WRONG_KEYS) {
       await new Promise((done) => { setTimeout(done, wrongKeyDelayMs); });
       send(res, 429, { error: 'tooManyAttempts' });
@@ -203,17 +251,37 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
     return false;
   }
 
-  /** A browser says it is covered. The last check-in of each browser is kept, nothing older. */
+  /**
+   * A browser says it is covered. The last check-in of each browser is kept, nothing older.
+   * The enrolment key is shared by every browser, so each browser also sends a secret of its
+   * own: the first check-in of an id keeps its hash, and later check-ins for that id must
+   * send the same secret. Someone holding the enrolment key cannot write over another
+   * browser's line.
+   */
   async function checkIn(req, res) {
     if (browserGate(req, res, 'POST')) return undefined;
     const report = cleanCheckIn(await readJson(req, MAX_CHECKIN_BYTES));
     if (!report) return send(res, 400, { error: 'checkIn' }, cors);
+    const { secret, ...fields } = report;
     const browsers = { ...(store.get().browsers ?? {}) };
     const known = browsers[report.id];
-    if (!known && Object.keys(browsers).length >= MAX_BROWSERS) return send(res, 507, { error: 'full' }, cors);
+    const secretHash = secret ? sha256(secret) : null;
+    if (known?.secretHash && !(secretHash && sameText(secretHash, known.secretHash))) {
+      return send(res, 403, { error: 'notThisBrowser' }, cors);
+    }
+    if (!known) {
+      if (Object.keys(browsers).length >= MAX_BROWSERS) return send(res, 507, { error: 'full' }, cors);
+      const hour = Math.floor(Date.now() / 3600000);
+      if (newBrowsers.hour !== hour) newBrowsers = { hour, count: 0 };
+      if (newBrowsers.count >= newBrowsersPerHour) return send(res, 429, { error: 'tooManyNewBrowsers' }, cors);
+      newBrowsers.count += 1;
+    }
     const now = new Date().toISOString();
-    browsers[report.id] = { ...report, firstSeen: known?.firstSeen ?? now, lastSeen: now };
-    store.update({ browsers });
+    // A browser from before secrets were sent keeps no hash until it sends one.
+    browsers[report.id] = {
+      ...fields, firstSeen: known?.firstSeen ?? now, lastSeen: now, secretHash: known?.secretHash ?? secretHash,
+    };
+    store.updateSoon({ browsers });
     return send(res, 200, { ok: true }, cors);
   }
 
@@ -254,7 +322,7 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
       });
     }
     if (path === '/api/admin/browsers' && req.method === 'GET') {
-      const browsers = Object.values(store.get().browsers ?? {}).sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1));
+      const browsers = Object.values(store.get().browsers ?? {}).sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1)).map(listed);
       return send(res, 200, { version: versionOf(store.get().settings), browsers });
     }
     if (path.startsWith('/api/admin/browsers/') && req.method === 'DELETE') {
@@ -291,8 +359,12 @@ export function createManagementServer({ dataDir, wrongKeyDelayMs = WRONG_KEY_DE
       return undefined;
     }
   });
-  return { server, firstAdminKey: store.firstAdminKey };
+  server.on('close', () => store.flush());
+  return { server, firstAdminKey: store.firstAdminKey, flush: store.flush };
 }
+
+/** Whether an address to listen on is reachable only from this machine. */
+export const loopbackOnly = (host) => ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(String(host).toLowerCase());
 
 function main() {
   const dataDir = process.env.KYRA_DATA_DIR || join(process.cwd(), 'data');
@@ -305,12 +377,24 @@ function main() {
   }
   const host = process.env.HOST || '127.0.0.1';
   const port = Number(process.env.PORT ?? 8787);
-  const { server, firstAdminKey } = createManagementServer({ dataDir });
+  const { server, firstAdminKey, flush } = createManagementServer({ dataDir });
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      flush();
+      process.exit(0);
+    });
+  }
   server.listen(port, host, () => {
     const address = server.address();
     console.log(`KYRA AI Guardrail Free management server: http://${host}:${address.port}/`);
     console.log(`Data: ${resolve(dataDir)}`);
     if (firstAdminKey) console.log(`Admin key (shown once, keep it somewhere safe): ${firstAdminKey}`);
+    if (!loopbackOnly(host)) {
+      // This server speaks plain HTTP: the admin key and the enrolment key would cross the
+      // network readable by anyone on the way, and the extension refuses such an address.
+      console.warn('Warning: listening beyond this machine over plain HTTP. Put an HTTPS reverse proxy in front'
+        + ' and give browsers and admins only its https:// address.');
+    }
   });
 }
 

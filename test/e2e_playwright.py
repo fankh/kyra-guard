@@ -38,6 +38,7 @@ PAGE = """<!doctype html><meta charset="utf-8"><title>chat</title>
 <input id="file" type="file" multiple>
 <div id="box" contenteditable="true" style="border:1px solid #888;min-height:40px"></div>
 <button id="send" aria-label="Send message">send</button>
+<button id="save" aria-label="Save settings">save</button>
 <script>
 window.sent = []; window.attached = [];
 const box = document.getElementById('box');
@@ -217,6 +218,12 @@ def main() -> int:
             wait_until(lambda: sent() == ["hello there"], message="clean message sent")
             time.sleep(0.8)
             check(sent() == ["hello there"], "a clean message is sent exactly once")
+            # A Save button that is not a send button: checked, but the draft is not sent with it.
+            box.click(); page.keyboard.type("just a draft"); page.click("#save")
+            time.sleep(1.0)
+            check(sent() == ["hello there"] and page.evaluate("document.getElementById('box').innerText.trim()") == "just a draft",
+                  "a draft stays put when another Save button is pressed")
+            page.evaluate("document.getElementById('box').innerText = ''")
 
             box.click(); page.keyboard.type("my number is 900101-1234567"); page.keyboard.press("Enter")
             wait_until(notice, message="block notice")
@@ -250,6 +257,18 @@ def main() -> int:
             time.sleep(0.5)
             check(len(sent()) == 3, "sent exactly once")
 
+            # Past the first 100,000 characters: checked in pieces, so a key at the end is still found.
+            filler = "lorem ipsum " * 9000
+            page.evaluate("t => { const b = document.getElementById('box'); b.innerText = t; b.focus(); }", filler + "key sk-" + "A" * 30)
+            page.keyboard.press("End"); page.keyboard.press("Enter")
+            wait_until(notice, message="block notice for a long message")
+            check(len(sent()) == 3, "a key after 100,000 characters of filler is found and not sent")
+            page.keyboard.press("Escape")
+            page.evaluate("t => { const b = document.getElementById('box'); b.innerText = t; b.focus(); }", filler + "end")
+            page.keyboard.press("End"); page.keyboard.press("Enter")
+            wait_until(lambda: len(sent()) == 4, message="long clean message sent")
+            check(sent()[3].endswith("end") and len(sent()[3]) > 100000, "a long clean message is sent whole, once")
+
             print("5. files on the allowed site")
             page.set_input_files("#file", str(files / "notes.txt"))
             wait_until(lambda: attached() == [["notes.txt"]], message="clean file attached")
@@ -263,8 +282,28 @@ def main() -> int:
             check(len(attached()) == 1, "a resident number inside a Word document is found")
             page.keyboard.press("Escape")
             page.set_input_files("#file", str(files / "photo.png"))
+            wait_until(notice, message="warning for the image")
+            check(len(attached()) == 1, "an image (it cannot be read here) is held for a warning by default")
+            page.keyboard.press("Shift+Tab"); page.keyboard.press("Enter")  # Cancel (focused) -> Attach anyway
             wait_until(lambda: len(attached()) == 2, message="image attached")
-            check(attached()[1] == ["photo.png"], "an image is let through by default (it cannot be read here)")
+            check(attached()[1] == ["photo.png"], "attached after the warning")
+
+            print("5b. a chat box in a frame, on a site that is not an AI service")
+            host_page = context.new_page()
+            host_page.goto(f"http://www.plain-site.test:{port}/")
+            host_page.evaluate("src => { const f = document.createElement('iframe'); f.src = src; f.style.height = '400px';"
+                               " document.body.append(f); }", chat)
+            frame = wait_until(lambda: host_page.wait_for_timeout(100) or next((f for f in host_page.frames if f.url.startswith(chat)), None), timeout=30, message="the frame")
+            frame.wait_for_selector("#box")
+            wait_until(lambda: frame.evaluate("!!document.getElementById('kyra-inspection-notice') || document.readyState === 'complete'"),
+                       message="frame loaded")
+            time.sleep(0.5)
+            frame.click("#box"); host_page.keyboard.type("my number is 900101-1234567"); host_page.keyboard.press("Enter")
+            wait_until(lambda: frame.evaluate(
+                "[...document.documentElement.children].some(e => e.tagName === 'DIV' && !e.id && e !== document.body)"),
+                message="block notice in the frame")
+            check(frame.evaluate("window.sent") == [], "a chat box in a frame is checked too (it was not before)")
+            host_page.close()
 
             print("6. the warned and the blocked site")
             blocked = context.new_page()
@@ -283,12 +322,40 @@ def main() -> int:
             warned.wait_for_url(f"http://app.warn-ai.test:{port}/start")
             check(True, "with a reason, the service opens")
             warned.close()
+            # Another site cannot load the extension's pages by their fixed address (it could before:
+            # to frame the warning page, fake log entries, or tell that the extension is installed).
+            target = f"http://app.warn-ai.test:{port}/start"
+            warn_url = f"{origin}/warn.html?service=custom-warn-ai-test&host=app.warn-ai.test&url={target}"
+            add_frame = "src => { const f = document.createElement('iframe'); f.src = src; document.body.append(f); }"
+            framing = context.new_page()
+            framing.goto(f"http://www.plain-site.test:{port}/")
+            framing.evaluate(add_frame, warn_url)
+            framing.evaluate(add_frame, f"http://www.block-ai.test:{port}/x")
+            framed_blocked = wait_until(lambda: framing.wait_for_timeout(100) or next(
+                (f for f in framing.frames if f.url.startswith(f"{origin}/blocked.html")), None), timeout=30, message="blocked page in a frame")
+            framed_blocked.wait_for_selector("#body", state="attached")  # the compact framed layout hides the paragraph
+            wait_until(lambda: "Block AI" in (framed_blocked.text_content("#body") or ""), message="blocked page text in the frame")
+            check(True, "a blocked service inside a frame still shows the blocked page")
+            check(not any(f.url.startswith(f"{origin}/warn.html") and f.locator("#reason").count() for f in framing.frames),
+                  "a site cannot open the warning page in a frame")
+            framing.close()
+            # Framed all the same (here by the extension's own page): it shows nothing, and its reports do not count.
+            options.evaluate(add_frame, warn_url)
+            framed = wait_until(lambda: options.wait_for_timeout(100) or next(
+                (f for f in options.frames if f.url.startswith(f"{origin}/warn.html")), None), timeout=30, message="the framed warning page")
+            framed.wait_for_load_state()
+            options.wait_for_timeout(500)
+            check(framed.evaluate("document.body.innerText.trim()") == "" and framed.locator("#reason").count() == 0,
+                  "the warning page shows nothing inside a frame")
+            answer = framed.evaluate("chrome.runtime.sendMessage({type: 'proceed', host: 'app.warn-ai.test', url: location.href, reason: 'x'})")
+            check(answer.get("ok") is False, "and the worker takes no report from a framed page")
+            options.evaluate("document.querySelectorAll('iframe').forEach(f => f.remove())")
 
             print("7. the activity log: what happened, never the text")
-            entries = wait_until(lambda: (lambda e: e if len(e) >= 9 else None)(log()), message="log entries")
+            entries = wait_until(lambda: (lambda e: e if len(e) >= 12 else None)(log()), message="log entries")
             actions = sorted({e["action"] for e in entries})
-            check(actions == ["blocked", "file_blocked", "proceeded", "prompt_blocked", "prompt_sent_after_warning",
-                              "prompt_warned", "warned"], f"the log has each kind of event ({len(entries)} entries)")
+            check(actions == ["blocked", "file_blocked", "file_sent_after_warning", "file_warned", "proceeded", "prompt_blocked",
+                              "prompt_sent_after_warning", "prompt_warned", "warned"], f"the log has each kind of event ({len(entries)} entries)")
             dumped = json.dumps(entries, ensure_ascii=False)
             check("1234567" not in dumped and "010-1234" not in dumped and "4111" not in dumped and "내부자료" not in dumped,
                   "no message or file text is in the log")
@@ -408,6 +475,9 @@ def main() -> int:
                 reported = json.dumps(listed, ensure_ascii=False)
                 check(not any(text in reported for text in ("allow-ai", "block-ai", "cards.csv", "카드", "Payment", "공개 문서", "127.0.0.1")),
                       "and no site, rule, file name, reason or network address")
+                device = sw.evaluate("chrome.storage.local.get('serverDevice').then(r => r.serverDevice)")
+                check(len(device.get("secret", "")) == 48 and "secretHash" not in mine and device["secret"] not in reported,
+                      "the browser checks in with a secret of its own, which the admin list never shows")
 
                 admin = context.new_page()
                 admin.goto(managed.url)

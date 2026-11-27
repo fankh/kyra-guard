@@ -10,7 +10,7 @@ import {
 import {
   SERVER_CACHE_KEY, SERVER_KEY, defaultSettings, loadSettings, normalizeSettings, serverConfig,
 } from '../extension/lib/settings.js';
-import { createManagementServer } from '../server/server.js';
+import { createManagementServer, loopbackOnly, wrongKeyTable } from '../server/server.js';
 
 const storage = ({ managed = {}, local = {} } = {}) => ({
   managed: { get: async () => managed },
@@ -187,6 +187,43 @@ describe('the management server', () => {
     assert.equal(listed.browsers.some((b) => b.id === 'browser-0003'), false);
   });
 
+  it('lets no one else check in under a browser\'s id once it has sent its own secret', async () => {
+    const { enrollmentKey } = await state();
+    const server = { url: base, key: enrollmentKey };
+    const report = (secret, label) => buildCheckIn({
+      id: 'browser-0010', secret, label, extensionVersion: '1.1.1', settingsVersion: null, settings: defaultSettings(), pendingAccess: 0, log: null,
+    });
+    const mine = 'a'.repeat(48);
+    assert.deepEqual(await sendCheckIn(server, report(mine, 'Lee PC')), { ok: true });
+    // Before: anyone with the shared enrolment key could write over this line.
+    assert.deepEqual(await sendCheckIn(server, report('b'.repeat(48), 'forged')), { ok: false });
+    assert.deepEqual(await sendCheckIn(server, report(undefined, 'forged')), { ok: false });
+    assert.deepEqual(await sendCheckIn(server, report('short', 'forged')), { ok: false });
+    assert.deepEqual(await sendCheckIn(server, report(mine, 'Lee PC (2)')), { ok: true });
+    const listed = await (await fetch(`${base}api/admin/browsers`, { headers: asAdmin() })).json();
+    const line = listed.browsers.find((b) => b.id === 'browser-0010');
+    assert.equal(line.label, 'Lee PC (2)');
+    assert.equal('secretHash' in line, false, 'the admin page is not given the hash');
+    assert.equal(JSON.stringify(listed).includes(mine), false);
+  });
+
+  it('takes only so many new browsers an hour, and writes check-ins to disk together', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kyra-server-'));
+    const small = createManagementServer({ dataDir: dir, newBrowsersPerHour: 2 });
+    await new Promise((done) => { small.server.listen(0, '127.0.0.1', done); });
+    const url = `http://127.0.0.1:${small.server.address().port}/`;
+    const key = JSON.parse(readFileSync(join(dir, 'state.json'), 'utf8')).enrollmentKey;
+    const report = (id) => buildCheckIn({ id, extensionVersion: '1.1.1', settingsVersion: null, settings: defaultSettings(), pendingAccess: 0, log: null });
+    assert.deepEqual(await sendCheckIn({ url, key }, report('browser-new-1')), { ok: true });
+    assert.deepEqual(await sendCheckIn({ url, key }, report('browser-new-2')), { ok: true });
+    assert.deepEqual(await sendCheckIn({ url, key }, report('browser-new-3')), { ok: false }, 'the third new one this hour waits');
+    assert.deepEqual(await sendCheckIn({ url, key }, report('browser-new-1')), { ok: true }, 'a known browser is not held up');
+    await new Promise((done) => { small.server.close(done); });
+    const saved = JSON.parse(readFileSync(join(dir, 'state.json'), 'utf8'));
+    assert.deepEqual(Object.keys(saved.browsers).sort(), ['browser-new-1', 'browser-new-2'], 'written out when the server stops');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it('answers the browser from any origin, as an extension needs', async () => {
     const preflight = await fetch(`${base}api/settings`, {
       method: 'OPTIONS', headers: { Origin: 'chrome-extension://abc', 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' },
@@ -269,10 +306,27 @@ describe('the management server', () => {
     assert.ok(Date.now() - quick < 140, 'and is not delayed');
   });
 
+  it('keeps a table of wrong keys with a size limit, without forgetting an address that keeps guessing', () => {
+    const note = wrongKeyTable({ limit: 3, windowMs: 1000 });
+    assert.equal(note('guesser', 0), 1);
+    assert.equal(note('guesser', 1), 2);
+    // Before: past the limit the whole table was emptied, and the guesser started again at 1.
+    for (const [i, other] of ['a', 'b'].entries()) note(other, 2 + i);
+    assert.equal(note('guesser', 5), 3);
+    note('c', 6);
+    assert.equal(note('guesser', 7), 4, 'the address heard from least recently goes, not the guesser');
+    assert.equal(note('a', 8), 1, 'a was dropped to make room');
+    assert.equal(note('guesser', 2000), 1, 'an expired count starts again');
+    assert.equal(loopbackOnly('127.0.0.1'), true);
+    assert.equal(loopbackOnly('0.0.0.0'), false);
+  });
+
   it('keeps every address of the admin page relative, so it works under a path prefix', () => {
     const page = readFileSync(new URL('../server/admin.js', import.meta.url), 'utf8') + readFileSync(new URL('../server/admin.html', import.meta.url), 'utf8');
     assert.doesNotMatch(page, /['"]\/(api|admin)/);
     assert.doesNotMatch(page, /location\.origin/);
+    // The admin key is not sent over plain HTTP to another machine (it was before).
+    assert.match(page, /location\.protocol === 'http:' && !\['localhost', '127\.0\.0\.1', '\[::1\]'\]\.includes\(location\.hostname\)/);
   });
 
   it('says when a server address is plain HTTP to another machine', () => {
@@ -281,5 +335,18 @@ describe('the management server', () => {
     for (const fine of ['https://guardrail.example.com/', 'http://localhost:8787/', 'http://127.0.0.1:8787/', 'not an address']) {
       assert.equal(isUnprotectedAddress(fine), false, fine);
     }
+  });
+
+  it('never downloads from or reports to plain HTTP on another machine', async () => {
+    const calls = [];
+    const fake = async (url) => {
+      calls.push(url);
+      return new Response(JSON.stringify({ version: 'v1', settings: {} }), { status: 200 });
+    };
+    assert.deepEqual(await fetchServerSettings({ url: 'http://10.0.0.5:8787/', key: 'k' }, fake), { ok: false, error: 'insecure' });
+    assert.deepEqual(await sendCheckIn({ url: 'http://guardrail.example.com/', key: 'k' }, { id: 'x' }, fake), { ok: false });
+    assert.deepEqual(calls, []);
+    assert.equal((await fetchServerSettings({ url: 'http://127.0.0.1:8787/', key: 'k' }, fake)).ok, true);
+    assert.equal(calls.length, 1);
   });
 });

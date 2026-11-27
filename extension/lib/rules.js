@@ -162,23 +162,83 @@ export function keywordRegex(pattern) {
   return terms.length ? new RegExp(terms.join('|'), 'gi') : null;
 }
 
+/** Where a group is opened: the length of its opening, "(", "(?:", "(?<name>" or a look-around. */
+function groupOpening(source, at) {
+  if (source[at + 1] !== '?') return 1;
+  const named = /^\(\?<(?![=!])[^>]*>/.exec(source.slice(at));
+  if (named) return named[0].length;
+  return source.startsWith('(?<=', at) || source.startsWith('(?<!', at) ? 4 : 3;
+}
+
+/**
+ * True when a repeated group itself holds a repeat, like (a+)+ or (\w*x)*: the shape that
+ * can backtrack without end. Such rules are refused outright; a trial alone can miss them.
+ */
+export function nestedRepeat(source) {
+  const groups = [{ repeats: false }];
+  let last = null; // the group just closed, which a quantifier would apply to
+  for (let at = 0; at < source.length;) {
+    const ch = source[at];
+    if (ch === '\\') {
+      last = null;
+      at += 2;
+    } else if (ch === '[') {
+      let end = at + 1;
+      if (source[end] === '^') end += 1;
+      if (source[end] === ']') end += 1;
+      while (end < source.length && source[end] !== ']') end += source[end] === '\\' ? 2 : 1;
+      last = null;
+      at = end + 1;
+    } else if (ch === '(') {
+      groups.push({ repeats: false });
+      last = null;
+      at += groupOpening(source, at);
+    } else if (ch === ')') {
+      last = groups.length > 1 ? groups.pop() : null;
+      if (last?.repeats) groups[groups.length - 1].repeats = true;
+      at += 1;
+    } else if (ch === '*' || ch === '+' || (ch === '{' && /^\{\d+(?:,\d*)?\}/.test(source.slice(at)))) {
+      // {3} or {2,5} repeats a bounded number of times; *, + and {2,} without end.
+      const braces = ch === '{' ? /^\{(\d+)(,(\d*))?\}/.exec(source.slice(at)) : null;
+      const endless = !braces || (braces[2] !== undefined && braces[3] === '');
+      const most = braces ? Number(braces[3] || braces[1]) : Infinity;
+      if (last?.repeats && (endless || most > 1)) return true;
+      if (endless) groups[groups.length - 1].repeats = true;
+      last = null;
+      at = ch === '{' ? at + braces[0].length : at + 1;
+      if (source[at] === '?') at += 1;
+    } else {
+      last = null;
+      at += 1;
+    }
+  }
+  return false;
+}
+
 /**
  * How long an expression takes on text made to be slow for it. Run before a rule written
  * by a person is saved: one that backtracks without end would freeze every check. The text
- * grows step by step and the trial stops at the first slow step, so the trial itself is short.
+ * is built from every character and every run of letters in the expression (all of them: a
+ * cap could be filled with harmless ones ahead of the slow part), grows step by step, and the
+ * trial stops at the first slow step. An expression slow on every text without being slow on
+ * any one is caught by the trial's total time.
  *
  * @returns {boolean} true when the expression is too slow to use
  */
-export function tooSlow(regex, { budgetMs = 25, now = () => performance.now() } = {}) {
-  const fromPattern = [...new Set(regex.source.replace(/\\[dDwWsSbB]/g, '').replace(/[^A-Za-z0-9가-힣@._ -]/g, ''))];
-  const seeds = [...new Set(['a', '1', ' ', '-', '.', 'a1', 'a ', '가', ...fromPattern.slice(0, 6)])];
+export function tooSlow(regex, { budgetMs = 25, totalMs = 500, now = () => performance.now() } = {}) {
+  const literal = regex.source.replace(/\\[dDwWsSbB]/g, ' ');
+  const characters = literal.replace(/[^A-Za-z0-9가-힣@._ -]/g, '');
+  const runs = literal.match(/[A-Za-z0-9가-힣@._-]{2,}/g) ?? [];
+  const seeds = [...new Set(['a', '1', ' ', '-', '.', 'a1', 'a ', '가', ...characters, ...runs])];
+  const deadline = now() + totalMs;
   for (const seed of seeds) {
     for (const length of [16, 22, 28, 34, 2000, 20000]) {
       const text = `${seed.repeat(Math.ceil(length / seed.length))}\u0000`;
       const probe = new RegExp(regex.source, regex.flags);
       const started = now();
       probe.test(text);
-      if (now() - started > budgetMs) return true;
+      const ended = now();
+      if (ended - started > budgetMs || ended > deadline) return true;
     }
   }
   return false;
@@ -207,7 +267,7 @@ export function compileCustomRule(raw, options) {
       return { ok: false, error: 'invalid' };
     }
     if (regex.test('')) return { ok: false, error: 'empty' };
-    if (tooSlow(regex, options)) return { ok: false, error: 'slow' };
+    if (nestedRepeat(pattern) || tooSlow(regex, options)) return { ok: false, error: 'slow' };
   }
   return {
     ok: true,
@@ -240,32 +300,101 @@ export function activeRules(settings, options) {
   return out;
 }
 
+// Characters that show nothing: zero-width spaces and joiners, the soft hyphen, direction marks.
+const INVISIBLE = /[­᠎​-‏‪-‮⁠-⁤⁦-⁩﻿]/;
+const WIDE = /[！-～　]/;
+// Three or more single characters, each one space or tab apart: "9 0 0 1 0 1", "p a s s".
+const SPACED_OUT = /(?<!\S)\S(?:[ \t]\S){2,}(?!\S)/u;
+
 /**
- * Runs the rules over a text.
+ * The text as the rules should see it when someone tried to hide a value: invisible
+ * characters taken out, full-width letters and digits made ordinary, and characters typed
+ * one space apart put back together. Ordinary text is left alone: "1.2", "a b" and
+ * "010 1234 5678" do not change. `at[i]` is where character i came from in the original,
+ * so findings can be masked there.
  *
- * @returns {{action: 'allow'|'warn'|'block', findings: {id, name, nameKo, category, action, count}[],
- *   spans: {start, end, rule}[]}} `spans` say where, for masking; nothing in the result
- *   holds the text itself.
+ * @returns {{text: string, at: number[]}|null} null when there is nothing to undo
  */
-export function scanText(text, rules) {
-  const input = String(text ?? '').slice(0, SCAN_LIMIT);
-  const findings = [];
-  const spans = [];
+export function foldForScan(input) {
+  if (!INVISIBLE.test(input) && !WIDE.test(input) && !SPACED_OUT.test(input)) return null;
+  const chars = [];
+  const at = [];
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+    if (INVISIBLE.test(ch)) continue;
+    const code = ch.charCodeAt(0);
+    chars.push(code === 0x3000 ? ' ' : code >= 0xFF01 && code <= 0xFF5E ? String.fromCharCode(code - 0xFEE0) : ch);
+    at.push(i);
+  }
+  const unhidden = chars.join('');
+  const keep = new Array(unhidden.length).fill(true);
+  for (const run of unhidden.matchAll(new RegExp(SPACED_OUT.source, 'gu'))) {
+    for (let i = run.index; i < run.index + run[0].length; i += 1) {
+      if (unhidden[i] === ' ' || unhidden[i] === '\t') keep[i] = false;
+    }
+  }
+  const folded = [];
+  const foldedAt = [];
+  for (let i = 0; i < unhidden.length; i += 1) {
+    if (keep[i]) {
+      folded.push(unhidden[i]);
+      foldedAt.push(at[i]);
+    }
+  }
+  const text = folded.join('');
+  return text === input ? null : { text, at: foldedAt };
+}
+
+/** Each rule's matches in a text: rule id -> {rule, count, spans}. */
+function matchRules(input, rules) {
+  const out = new Map();
   for (const rule of rules) {
     const regex = new RegExp(rule.regex.source, rule.regex.flags.includes('g') ? rule.regex.flags : `${rule.regex.flags}g`);
-    let count = 0;
-    for (let match = regex.exec(input); match && count < MAX_MATCHES_PER_RULE; match = regex.exec(input)) {
+    const spans = [];
+    for (let match = regex.exec(input); match && spans.length < MAX_MATCHES_PER_RULE; match = regex.exec(input)) {
       if (match[0] === '') {
         regex.lastIndex += 1;
         continue;
       }
       if (rule.valid && !rule.valid(match[0])) continue;
-      count += 1;
       spans.push({ start: match.index, end: match.index + match[0].length, rule });
     }
-    if (count) {
-      findings.push({ id: rule.id, name: rule.name, nameKo: rule.nameKo, category: rule.category, action: rule.action, count });
+    if (spans.length) out.set(rule.id, { rule, count: spans.length, spans });
+  }
+  return out;
+}
+
+/**
+ * Runs the rules over a text, and over its folded form (foldForScan) when that differs, so
+ * a value with a zero-width space, full-width digits or spaces between its characters is
+ * still found. A value found both ways counts once.
+ *
+ * @returns {{action: 'allow'|'warn'|'block', findings: {id, name, nameKo, category, action, count}[],
+ *   spans: {start, end, rule}[]}} `spans` say where in the text as given, for masking; nothing
+ *   in the result holds the text itself.
+ */
+export function scanText(text, rules) {
+  const input = String(text ?? '').slice(0, SCAN_LIMIT);
+  const plain = matchRules(input, rules);
+  const fold = foldForScan(input);
+  const folded = fold ? matchRules(fold.text, rules) : new Map();
+  const findings = [];
+  const spans = [];
+  for (const rule of rules) {
+    const a = plain.get(rule.id);
+    const b = folded.get(rule.id);
+    if (!a && !b) continue;
+    const seen = new Set();
+    const mapped = (b?.spans ?? []).map((s) => ({ start: fold.at[s.start], end: fold.at[s.end - 1] + 1, rule }));
+    for (const span of [...(a?.spans ?? []), ...mapped]) {
+      const key = `${span.start}:${span.end}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        spans.push(span);
+      }
     }
+    const count = Math.max(a?.count ?? 0, b?.count ?? 0);
+    findings.push({ id: rule.id, name: rule.name, nameKo: rule.nameKo, category: rule.category, action: rule.action, count });
   }
   const action = findings.some((f) => f.action === 'block') ? 'block' : findings.length ? 'warn' : 'allow';
   return { action, findings, spans };

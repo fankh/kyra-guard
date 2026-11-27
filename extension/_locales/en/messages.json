@@ -136,6 +136,12 @@
   "promptUnavailableBody": {
     "message": "The message could not be checked, and $1 does not allow unchecked messages to AI services. Try again in a moment."
   },
+  "promptUncheckedTitle": {
+    "message": "This message could not be checked"
+  },
+  "promptUncheckedBody": {
+    "message": "The extension did not answer in time, so the message was not checked. Try again, or reload the page. You can also send it unchecked."
+  },
   "promptEdit": {
     "message": "Edit message"
   },
@@ -562,9 +568,6 @@
   "serverNotice": {
     "message": "The settings are downloaded from your organization's management server ($1). This browser reports its name, versions and daily counts of blocked and warned events to that server. The activity log and what you send stay in this browser."
   },
-  "serverWarnHttp": {
-    "message": "This address is not HTTPS: the settings and the enrollment key can be read on the network."
-  },
   "optServerLabel": {
     "message": "Name of this PC or team (optional)"
   },
@@ -576,5 +579,17 @@
   },
   "commercialUrl": {
     "message": "https://seekerslab.com/en/ai/guardrail"
+  },
+  "serverErr_insecure": {
+    "message": "The address is plain HTTP to another machine, so the settings and the enrollment key could be read and changed on the network. Use an HTTPS address."
+  },
+  "promptTooLongTitle": {
+    "message": "This message is too long to check"
+  },
+  "promptTooLongBody": {
+    "message": "Messages of more than $1 characters cannot be checked in full and are not sent. Send it in shorter parts."
+  },
+  "fileUnscannable_size": {
+    "message": "too large to check in full (over 20 MB, or more than 1,000,000 characters of text)"
   }
 }

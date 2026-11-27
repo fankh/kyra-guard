@@ -35,7 +35,8 @@ your organization chose and, as with any web request, your network address.
 The check-in tells your organization's server:
 
 - the name given to this browser, if one was typed or set by your administrator, and a random
-  identifier made for this browser when it connected;
+  identifier and a random secret made for this browser when it connected (the secret only proves
+  that later check-ins come from the same browser; the server keeps a hash of it);
 - the version of the extension and of the settings in force;
 - whether the checks of messages and files are on, and how many of your own services still wait
   for site access;
@@ -100,7 +101,7 @@ KYRA AI Guardrail Free는 (주)씨커스(이하 "당사")가 배포하는 브라
 - 관리 서버는 소속 조직이 자체 장비에서 운영하는 프로그램으로 당사는 운영하지 않으며 접근 권한 없음
 - 연결 시 확장 프로그램이 주기적으로 해당 서버에 설정 문서를 요청하고 상태를 보고
 - 요청에 포함되는 정보: 조직이 정한 등록 키, 일반 웹 요청과 동일한 네트워크 주소
-- 보고 항목: 브라우저 이름(입력하였거나 관리자가 지정한 경우), 연결 시 생성한 임의 식별자, 확장 프로그램 및 설정 버전, 메시지·파일 검사 사용 여부, 사이트 접근 대기 중인 직접 추가 서비스 수, 최근 7일의 일별 차단·경고·경고 후 전송 건수
+- 보고 항목: 브라우저 이름(입력하였거나 관리자가 지정한 경우), 연결 시 생성한 임의 식별자 및 비밀 값(동일 브라우저의 보고임을 확인하는 용도, 서버는 해시만 보관), 확장 프로그램 및 설정 버전, 메시지·파일 검사 사용 여부, 사이트 접근 대기 중인 직접 추가 서비스 수, 최근 7일의 일별 차단·경고·경고 후 전송 건수
 - 보고하지 않는 항목: 사용한 사이트, 일치한 규칙, 파일 이름, 경고 화면에 입력한 사유, 입력하거나 첨부한 내용. 활동 기록은 브라우저에 보관
 - 연결 상태는 설정에서 확인 가능하며, 관리자가 지정한 경우를 제외하고 연결 해제 가능. 연결 해제 시 식별자 삭제
 

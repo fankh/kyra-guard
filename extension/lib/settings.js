@@ -20,7 +20,7 @@ export const MAX_CUSTOM_SERVICES = 200;
 export const LANGUAGES = Object.freeze(['auto', 'en', 'ko']);
 // chrome.storage.local
 export const SERVER_KEY = 'server'; // { url, key, label }: the management server typed in the settings page
-export const DEVICE_KEY = 'serverDevice'; // { id }: a random id for this browser, made when it first checks in
+export const DEVICE_KEY = 'serverDevice'; // { id, secret }: random values for this browser, made when it first checks in
 export const SERVER_CACHE_KEY = 'serverSettings'; // { url, version, fetchedAt, settings }: the last download
 export const SERVER_STATUS_KEY = 'serverStatus'; // { url, at, ok, error, version }: how the last download went
 const MAX_DOMAINS_PER_SERVICE = 30;
@@ -34,7 +34,7 @@ export function defaultSettings() {
     defaultAction: 'allow',
     services: {},
     customServices: [],
-    inspection: { prompts: true, files: true, unscannableFiles: 'allow' },
+    inspection: { prompts: true, files: true, unscannableFiles: 'warn' },
     rules: {},
     customRules: [],
     log: true,
@@ -96,7 +96,7 @@ export function normalizeSettings(raw, options) {
     inspection: {
       prompts: raw.inspection?.prompts !== false,
       files: raw.inspection?.files !== false,
-      unscannableFiles: UNSCANNABLE.includes(raw.inspection?.unscannableFiles) ? raw.inspection.unscannableFiles : 'allow',
+      unscannableFiles: UNSCANNABLE.includes(raw.inspection?.unscannableFiles) ? raw.inspection.unscannableFiles : 'warn',
     },
     rules,
     customRules,

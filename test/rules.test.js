@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
-  BUILTIN_RULES, activeRules, compileCustomRule, keywordRegex, luhn, maskText, scanText, tooSlow, validBusinessNumber,
+  BUILTIN_RULES, activeRules, compileCustomRule, foldForScan, keywordRegex, luhn, maskText, nestedRepeat, scanText, tooSlow, validBusinessNumber,
 } from '../extension/lib/rules.js';
 
 const defaults = activeRules({});
@@ -98,6 +99,37 @@ describe('own rules', () => {
     assert.equal(tooSlow(/PRJ-\d{4}/g), false);
   });
 
+  it('refuses a slow rule whose slow part uses letters found late in the expression', () => {
+    // Passed the trial before: only the first six letters of an expression were tried.
+    assert.equal(compileCustomRule({ name: 'n', type: 'regex', pattern: 'bcdefg|(h+)+i' }).error, 'slow');
+    assert.equal(tooSlow(/bcdefg|(?:h|hh)+i/g), true);
+    // Many harmless characters ahead of the slow part must not push it out of the trial.
+    const filler = Array.from({ length: 120 }, (_, i) => String.fromCharCode(0xAC03 + i * 3)).join('');
+    assert.equal(tooSlow(new RegExp(`${filler}|(?:힣|힣힣)+i`, 'g')), true);
+  });
+
+  it('refuses a repeated group that holds a repeat, and keeps bounded or simple ones', () => {
+    for (const slow of ['(a+)+', '(\\w*x)*y', '(?:[a-z]+\\s?){2,}', '(?<word>\\d+-)+$', '((ab)+c)*', '(x+){1,30}']) {
+      assert.equal(nestedRepeat(slow), true, slow);
+    }
+    for (const fine of ['PRJ-\\d{4}', '(\\d{3}-){2}\\d{4}', '(foo|bar)+baz', '(?<!\\d)\\d{6}(?!\\d)', '[(+*)]+', '\\(a+\\)+', '(a{3})+', 'x+(y+)']) {
+      assert.equal(nestedRepeat(fine), false, fine);
+    }
+    assert.equal(compileCustomRule({ name: 'n', type: 'regex', pattern: '(\\d{3}-){2}\\d{4}' }).ok, true);
+  });
+
+  it('checks nothing past its limit, so the page script sends longer text in pieces', () => {
+    const key = `sk-${'A'.repeat(30)}`;
+    assert.equal(scanText(key, defaults).action, 'block');
+    assert.equal(scanText('x'.repeat(100000) + key, defaults).action, 'allow');
+    const script = readFileSync(new URL('../extension/content/prompt.js', import.meta.url), 'utf8');
+    assert.match(script, /askAll\('scanPrompt'/);
+    assert.match(script, /askAll\('scanFile'/);
+    // No answer from the worker warns instead of sending unchecked (it used to send).
+    assert.match(script, /UNCHECKED = Object\.freeze\(\{ action: 'warn'/);
+    assert.doesNotMatch(script, /\|\| \{ action: 'allow' \}/);
+  });
+
   it('finds the markings and numbers public bodies use, when those rules are on', () => {
     const rules = activeRules({ rules: { 'kr-corporate-number': 'warn', 'kr-landline-phone': 'warn' } });
     const ids = (text) => scanText(text, rules).findings.map((f) => f.id);
@@ -124,6 +156,37 @@ describe('own rules', () => {
     const result = scanText('PRJ-2041 is Confidential, 대외비임', rules);
     assert.equal(result.action, 'block');
     assert.deepEqual(result.findings.map((f) => [f.id, f.category, f.count]), [['kr-security-marking', 'INTELLECTUAL_PROPERTY', 1], ['custom-a', 'CUSTOM', 1], ['custom-b', 'CUSTOM', 2]]);
+  });
+});
+
+describe('hidden values', () => {
+  const key = `sk-${'A'.repeat(30)}`;
+
+  it('finds a value with an invisible character, full-width digits or spaces between its characters', () => {
+    // Each of these passed before: the rules ran on the text exactly as typed.
+    assert.equal(scanText(`key sk-​${'A'.repeat(30)}`, defaults).action, 'block');
+    assert.equal(scanText(`key s­k-${'A'.repeat(30)}`, defaults).action, 'block');
+    assert.deepEqual(ids('주민번호 9 0 0 1 0 1 - 1 2 3 4 5 6 7'), ['kr-resident-number']);
+    assert.deepEqual(ids('주민번호 ９００１０１－１２３４５６７'), ['kr-resident-number']);
+    assert.deepEqual(ids('p a s s w o r d : hunter2!!'), ['password-assignment']);
+  });
+
+  it('leaves ordinary text as it is', () => {
+    for (const text of ['1.2 and a b', 'call 010 1234 5678', 'plain text', '한국어 문장입니다', key]) {
+      assert.equal(foldForScan(text), null, text);
+    }
+    assert.deepEqual(ids('a b c d'), []);
+    assert.equal(scanText('version 1 2 3 of the plan', defaults).action, 'allow');
+  });
+
+  it('counts a value found both ways once, and masks it where it is in the text as given', () => {
+    assert.equal(scanText('call 010-1234-5678', all).findings[0].count, 1);
+    const two = scanText('010-1234-5678 or 0​10-9999-0000', all);
+    assert.equal(two.findings.find((f) => f.id === 'kr-mobile-phone').count, 2);
+    const text = `key sk-​${'A'.repeat(30)} end`;
+    assert.equal(maskText(text, scanText(text, defaults).spans), 'key [API key or token] end');
+    const spaced = 'id 9 0 0 1 0 1 - 1 2 3 4 5 6 7 ok';
+    assert.equal(maskText(spaced, scanText(spaced, defaults).spans), 'id [Resident registration number (KR)] ok');
   });
 });
 

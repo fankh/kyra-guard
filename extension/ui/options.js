@@ -272,7 +272,6 @@ async function renderServer(note = '') {
       : `${t(`serverErr_${status.error}`)}${source === 'server' ? ` ${t('serverStatusHeld')}` : ''}`;
   }
   if (server?.managed) text = `${text} ${t('serverStatusPolicy')}`.trim();
-  if (server && isUnprotectedAddress(server.url)) text = `${text} ${t('serverWarnHttp')}`.trim();
   setText('server-status', text);
 }
 
@@ -280,6 +279,7 @@ $('server-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const url = normalizeServerUrl($('server-url').value);
   if (!url) return renderServer(t('serverErr_address'));
+  if (isUnprotectedAddress(url)) return renderServer(t('serverErr_insecure'));
   await chrome.storage.local.set({ [SERVER_KEY]: { url, key: $('server-key').value.trim(), label: $('server-label').value } });
   $('server-key').value = '';
   server = await serverConfig(chrome.storage);

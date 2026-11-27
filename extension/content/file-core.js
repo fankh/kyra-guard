@@ -8,7 +8,10 @@
 
 (function (root) {
   const MAX_FILE_BYTES = 20 * 1024 * 1024;
-  const MAX_TEXT_CHARS = 100000; // the server's limit per scan
+  // The most text taken from one file. It is checked in pieces of the server's limit per scan;
+  // a file with more text than this is not checked in part but counts as one that cannot be
+  // checked (reason 'size'), so nothing past the end of what was read slips through.
+  const MAX_TEXT_CHARS = 1000000;
   const MAX_PART_BYTES = 30 * 1024 * 1024; // one inflated XML part; guards against zip bombs
 
   const TEXT_EXTENSIONS = new Set([
@@ -201,26 +204,28 @@
         parts.push(text);
         length += text.length + 1;
       }
-      if (length >= MAX_TEXT_CHARS) break;
+      if (length > MAX_TEXT_CHARS) break;
     }
     return parts.join('\n');
   }
 
   /**
-   * The file's text: {scannable: true, text, truncated} (text may be '' for an empty file),
-   * or {scannable: false} when it cannot be read here ({scannable: false, reason} when a
-   * probe says why).
+   * The file's text: {scannable: true, text} (text may be '' for an empty file), or
+   * {scannable: false} when it cannot be read here ({scannable: false, reason} when a probe
+   * says why, or 'size' when the file or its text is too large to check in full).
    */
   async function extractText(file) {
     const reason = await probed(file);
     if (reason) return { scannable: false, reason };
+    if (typeof file.size === 'number' && file.size > MAX_FILE_BYTES) return { scannable: false, reason: 'size' };
     const kind = classify(file.name, file.type, file.size);
     if (kind === 'unscannable') return { scannable: false };
     try {
       let text;
       if (kind === 'text') {
-        // Four bytes per character at most; never read more than the scan can take.
-        text = new TextDecoder().decode(await file.slice(0, MAX_TEXT_CHARS * 4).arrayBuffer());
+        // A file of more than four bytes per character allowed holds more text than is checked.
+        if (file.size > MAX_TEXT_CHARS * 4) return { scannable: false, reason: 'size' };
+        text = new TextDecoder().decode(await file.arrayBuffer());
         // Binary content under a text name is not text.
         if (/\u0000/.test(text.slice(0, 4000))) return { scannable: false };
       } else if (EXTRA_READERS.has(kind)) {
@@ -228,8 +233,8 @@
       } else {
         text = await ooxmlText(new Uint8Array(await file.arrayBuffer()), kind);
       }
-      const truncated = text.length > MAX_TEXT_CHARS || (kind === 'text' && file.size > MAX_TEXT_CHARS * 4);
-      return { scannable: true, text: text.slice(0, MAX_TEXT_CHARS), truncated };
+      if (text.length > MAX_TEXT_CHARS) return { scannable: false, reason: 'size' };
+      return { scannable: true, text };
     } catch {
       // Password-protected, damaged or not what its name says.
       return { scannable: false };

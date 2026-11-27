@@ -136,6 +136,12 @@
   "promptUnavailableBody": {
     "message": "메시지를 검사할 수 없으며, $1에서는 검사하지 않은 메시지를 AI 서비스로 보낼 수 없습니다. 잠시 후 다시 시도해 주세요."
   },
+  "promptUncheckedTitle": {
+    "message": "메시지를 검사하지 못했습니다"
+  },
+  "promptUncheckedBody": {
+    "message": "확장 프로그램이 제때 응답하지 않아 메시지를 검사하지 못했습니다. 다시 시도하거나 페이지를 새로 고쳐 주세요. 검사 없이 전송할 수도 있습니다."
+  },
   "promptEdit": {
     "message": "메시지 수정"
   },
@@ -562,9 +568,6 @@
   "serverNotice": {
     "message": "설정은 조직의 관리 서버($1)에서 내려받습니다. 이 브라우저는 이름, 버전, 일별 차단·경고 건수를 해당 서버에 보고합니다. 활동 기록과 입력 내용은 이 브라우저에만 보관합니다."
   },
-  "serverWarnHttp": {
-    "message": "HTTPS 주소가 아니므로 설정과 등록 키가 네트워크에서 노출될 수 있습니다."
-  },
   "optServerLabel": {
     "message": "이 PC 또는 팀 이름 (선택)"
   },
@@ -576,5 +579,17 @@
   },
   "commercialUrl": {
     "message": "https://seekerslab.com/ko/ai/guardrail"
+  },
+  "serverErr_insecure": {
+    "message": "다른 PC의 HTTP 주소는 설정과 등록 키가 네트워크에서 노출·변조될 수 있어 연결할 수 없습니다. HTTPS 주소를 사용하십시오."
+  },
+  "promptTooLongTitle": {
+    "message": "메시지가 너무 길어 검사할 수 없습니다"
+  },
+  "promptTooLongBody": {
+    "message": "$1자를 초과하는 메시지는 전체를 검사할 수 없어 전송하지 않습니다. 나누어 전송하십시오."
+  },
+  "fileUnscannable_size": {
+    "message": "전체 검사 불가 크기(20MB 초과 또는 텍스트 100만 자 초과)"
   }
 }

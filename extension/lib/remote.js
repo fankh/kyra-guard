@@ -30,7 +30,7 @@ export function normalizeServerUrl(input) {
   return `${url.origin}${path}`;
 }
 
-/** True when the address is plain HTTP to another machine: what is downloaded can be read on the way. */
+/** True when the address is plain HTTP to another machine: what is downloaded can be read and changed on the way. */
 export function isUnprotectedAddress(input) {
   const base = normalizeServerUrl(input);
   if (!base) return false;
@@ -48,12 +48,16 @@ export function clampRefreshMinutes(value) {
  * Downloads the settings document.
  *
  * @param {{url: string, key?: string, version?: string}} server `version` is what is held already
+ * Plain HTTP is refused except to this machine: on the way, anyone could read the enrolment
+ * key and hand out settings that turn the checks off. The settings held from before stay.
+ *
  * @returns {Promise<{ok: true, unchanged: boolean, version?: string, refreshMinutes?: number, settings?: object}
- *   | {ok: false, error: 'address'|'network'|'unauthorized'|'notFound'|'server'|'invalid'}>}
+ *   | {ok: false, error: 'address'|'insecure'|'network'|'unauthorized'|'notFound'|'server'|'invalid'}>}
  */
 export async function fetchServerSettings(server, fetchImpl = fetch) {
   const base = normalizeServerUrl(server?.url);
   if (!base) return { ok: false, error: 'address' };
+  if (isUnprotectedAddress(base)) return { ok: false, error: 'insecure' };
   const headers = { Accept: 'application/json' };
   if (server.key) headers.Authorization = `Bearer ${server.key}`;
   if (server.version) headers['If-None-Match'] = `"${server.version}"`;
@@ -105,11 +109,12 @@ export function cleanLabel(input) {
  * What a browser tells the management server about itself. Built here, in one place, so that
  * what leaves the browser is easy to read: numbers per day, no sites, no rules, no text.
  *
- * @param {{id: string, label?: string, extensionVersion: string, settingsVersion: string|null,
+ * @param {{id: string, secret?: string, label?: string, extensionVersion: string, settingsVersion: string|null,
  *   settings: object, pendingAccess: number, log: object[]|null, now?: number}} input
- *   `log` is the activity log, or null when the person or the settings turned it off
+ *   `log` is the activity log, or null when the person or the settings turned it off;
+ *   `secret` is this browser's own random value, so no one else can check in under its id
  */
-export function buildCheckIn({ id, label, extensionVersion, settingsVersion, settings, pendingAccess, log, now = Date.now() }) {
+export function buildCheckIn({ id, secret, label, extensionVersion, settingsVersion, settings, pendingAccess, log, now = Date.now() }) {
   let days = null;
   if (Array.isArray(log)) {
     const byDay = new Map();
@@ -123,6 +128,7 @@ export function buildCheckIn({ id, label, extensionVersion, settingsVersion, set
   }
   return {
     id,
+    ...(secret ? { secret } : {}),
     label: cleanLabel(label),
     extensionVersion: String(extensionVersion),
     settingsVersion: settingsVersion ?? null,
@@ -135,7 +141,7 @@ export function buildCheckIn({ id, label, extensionVersion, settingsVersion, set
 /** Sends the check-in. A failure changes nothing in the browser; it is tried again at the next download. */
 export async function sendCheckIn(server, report, fetchImpl = fetch) {
   const base = normalizeServerUrl(server?.url);
-  if (!base) return { ok: false };
+  if (!base || isUnprotectedAddress(base)) return { ok: false };
   const headers = { 'Content-Type': 'application/json' };
   if (server.key) headers.Authorization = `Bearer ${server.key}`;
   try {

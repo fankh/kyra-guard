@@ -81,7 +81,8 @@ async function syncPromptScript(policy) {
   }
   const script = {
     id: PROMPT_SCRIPT_ID, matches, js: PROMPT_SCRIPT_FILES,
-    runAt: 'document_start', allFrames: false, persistAcrossSessions: true,
+    // Every frame: an AI chat box can sit in a frame, also inside another site.
+    runAt: 'document_start', allFrames: true, persistAcrossSessions: true,
   };
   if (existing.length) await chrome.scripting.updateContentScripts([script]);
   else await chrome.scripting.registerContentScripts([script]);
@@ -96,7 +97,7 @@ async function syncPromptScript(policy) {
 async function coverOpenTabs(matches) {
   const tabs = await chrome.tabs.query({ url: matches }).catch(() => []);
   await Promise.all(tabs.map((tab) => chrome.scripting.executeScript({
-    target: { tabId: tab.id }, files: PROMPT_SCRIPT_FILES,
+    target: { tabId: tab.id, allFrames: true }, files: PROMPT_SCRIPT_FILES,
   }).catch(() => null))); // a tab that is closing or showing an error page
 }
 
@@ -180,12 +181,14 @@ async function checkIn(server, settingsVersion) {
   current = null;
   const { settings, pending } = await state();
   let device = (await local.get(DEVICE_KEY))[DEVICE_KEY];
-  if (!device?.id) {
-    device = { id: crypto.randomUUID() };
+  if (!device?.id || !device.secret) {
+    // The secret proves to the server that later check-ins for this id come from this browser.
+    const secret = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    device = { id: device?.id || crypto.randomUUID(), secret };
     await local.set({ [DEVICE_KEY]: device });
   }
   await sendCheckIn(server, buildCheckIn({
-    id: device.id, label: server.label, extensionVersion: chrome.runtime.getManifest().version, settingsVersion,
+    id: device.id, secret: device.secret, label: server.label, extensionVersion: chrome.runtime.getManifest().version, settingsVersion,
     settings, pendingAccess: pending.length, log: settings.log ? await log.read() : null,
   }));
 }
@@ -277,6 +280,8 @@ const handlers = {
   },
 };
 
+const TOP_LEVEL_ONLY = new Set(['blocked', 'warned', 'proceed']);
+
 const NOTICE_KEY = 'inspectionNoticeAt';
 const NOTICE_EVERY_MS = 30 * 24 * 60 * MINUTE_MS;
 
@@ -306,7 +311,8 @@ async function inspectionSettings(sender) {
   const files = covered && found.settings.inspection.files;
   return {
     prompts, files, images: false, imageMaxBytes: 0,
-    notice: (prompts || files) && await noticeDue(), companyName: found.settings.organisation,
+    // The monthly notice goes to the page itself, not to a frame in it that may not be seen.
+    notice: (prompts || files) && sender.frameId === 0 && await noticeDue(), companyName: found.settings.organisation,
   };
 }
 
@@ -364,7 +370,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === 'scanPrompt' || message?.type === 'scanFile') {
       inspect(message, sender).then(sendResponse, (error) => {
         console.error('check', error);
-        sendResponse({ action: 'allow' });
+        // Not checked: the user is warned and may still send, never let through unasked.
+        sendResponse({ action: 'warn', findings: [], unchecked: true });
       });
       return true;
     }
@@ -382,6 +389,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!sender.url?.startsWith(extensionOrigin)) return false;
   const handler = handlers[message?.type];
   if (!handler) return false;
+  // The blocked and warning pages can be opened by any site (they must be, to replace its
+  // navigation); what they report counts only from a page that is the whole tab.
+  if (TOP_LEVEL_ONLY.has(message.type) && (!sender.tab || sender.frameId !== 0)) {
+    sendResponse({ ok: false, error: 'not a whole tab' });
+    return false;
+  }
   handler(message).then(sendResponse, (error) => {
     console.error(message.type, error);
     sendResponse({ ok: false, error: String(error?.message ?? error) });
